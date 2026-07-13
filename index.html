@@ -127,6 +127,33 @@
     font-family:'Special Elite',monospace; letter-spacing:2px; text-transform:lowercase;
     margin:14px 0;
   }
+
+  .tile-slots{
+    display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:20px 0 14px; min-height:56px;
+  }
+  .tile-slot{
+    width:46px; height:54px; border:2px dashed var(--paper-line); border-radius:8px;
+    display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.35);
+  }
+  .tile-slot.filled{border-style:solid; border-color:var(--brass); background:transparent;}
+  .tile-tray{
+    display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:6px 0 4px;
+    min-height:66px; padding:10px; border:2px solid var(--paper-line); border-radius:10px;
+    background:rgba(0,0,0,0.04);
+  }
+  .tile{
+    width:46px; height:54px; border-radius:8px; background:var(--ink); color:var(--brass);
+    display:flex; align-items:center; justify-content:center; font-family:'Special Elite',monospace;
+    font-size:24px; font-weight:700; cursor:grab; touch-action:none; user-select:none;
+    box-shadow:0 3px 0 rgba(0,0,0,0.35); text-transform:lowercase;
+  }
+  .tile:active{cursor:grabbing;}
+  .tile.dragging{
+    position:fixed; z-index:80; pointer-events:none;
+    box-shadow:0 10px 22px rgba(0,0,0,0.5); transform:scale(1.1);
+  }
+  .tile-hint{font-size:12px; color:#6b6555; text-align:center; margin-top:2px;}
+
   .btn{
     background:var(--red); color:var(--chalk); border:none; border-radius:8px;
     padding:12px 20px; font-size:15px; font-weight:700; cursor:pointer;
@@ -140,8 +167,14 @@
   .seq-item{
     background:#fbf7ec; border:2px solid var(--paper-line); border-radius:8px;
     padding:10px 12px; display:flex; align-items:center; gap:10px; cursor:grab; font-weight:600;
+    touch-action:none; user-select:none;
   }
-  .seq-item.dragging{opacity:0.4;}
+  .seq-item:active{cursor:grabbing;}
+  .seq-item.dragging{
+    position:fixed; z-index:80; pointer-events:none; opacity:0.95;
+    box-shadow:0 10px 22px rgba(0,0,0,0.5); background:#fff;
+  }
+  .seq-item.selected{border-color:var(--brass); box-shadow:0 0 0 2px var(--brass) inset;}
   .seq-item .num{
     width:24px; height:24px; border-radius:50%; background:var(--ink); color:var(--chalk);
     display:flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0;
@@ -713,17 +746,120 @@ function renderMC(r){
 
 function renderSpell(r){
   const q = r.questions[S.qIdx];
+  const letters = q.word.split('').map((ch,i)=>({id:'t'+i, letter:ch, correctIndex:i}));
+  let trayTiles = shuffleTileLetters(letters);
+  let slots = new Array(letters.length).fill(null);
+
   const panel = el(`
     <div class="panel">
       <h2>${r.icon} ${r.title}</h2>
       <p class="small">Word ${S.qIdx+1} of ${r.questions.length}</p>
-      <p>Tap to hear the word and its sentence, then spell it below.</p>
+      <p>Tap 🔊 to hear the word, then drag — or tap — the letter tiles into order below.</p>
       <div class="center"><button class="spell-word-btn" id="hearBtn">🔊 Hear the word</button></div>
-      <input class="spell-input" id="spellInput" type="text" placeholder="type the word..." autocomplete="off" />
-      <div class="center"><button class="btn" id="submitSpell">File Evidence</button></div>
+      <div class="tile-slots" id="tileSlots"></div>
+      <div class="tile-tray" id="tileTray"></div>
+      <p class="tile-hint">Tap a tile to place it, tap a placed tile to send it back.</p>
+      <div class="center" style="margin-top:14px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        <button class="btn ghost" id="resetTilesBtn">Reset Tiles</button>
+        <button class="btn" id="submitSpell" disabled>File Evidence</button>
+      </div>
     </div>
   `);
   app.appendChild(panel);
+
+  const slotsEl = panel.querySelector('#tileSlots');
+  const trayEl = panel.querySelector('#tileTray');
+  const submitBtn = panel.querySelector('#submitSpell');
+  const tileById = (id)=> letters.find(l=>l.id===id);
+
+  function placeInFirstEmptySlot(t){
+    const idx = slots.findIndex(s=>s===null);
+    if(idx===-1) return;
+    slots[idx] = t.id;
+    trayTiles = trayTiles.filter(x=>x.id!==t.id);
+  }
+  function removeFromSlot(slotIndex){
+    const tid = slots[slotIndex];
+    if(!tid) return;
+    slots[slotIndex]=null;
+    trayTiles.push(tileById(tid));
+  }
+
+  function makeTileEl(t, location, slotIndex){
+    const d = document.createElement('div');
+    d.className='tile';
+    d.textContent = t.letter;
+    let startX,startY,dragging=false,moved=false,offX=0,offY=0;
+    d.addEventListener('pointerdown', e=>{
+      e.preventDefault();
+      dragging=true; moved=false;
+      startX=e.clientX; startY=e.clientY;
+      d.setPointerCapture(e.pointerId);
+      const rect = d.getBoundingClientRect();
+      offX = e.clientX-rect.left; offY = e.clientY-rect.top;
+    });
+    d.addEventListener('pointermove', e=>{
+      if(!dragging) return;
+      const dx=e.clientX-startX, dy=e.clientY-startY;
+      if(!moved && (Math.abs(dx)>4 || Math.abs(dy)>4)){
+        moved=true;
+        d.classList.add('dragging');
+      }
+      if(moved){
+        d.style.left=(e.clientX-offX)+'px';
+        d.style.top=(e.clientY-offY)+'px';
+      }
+    });
+    d.addEventListener('pointerup', e=>{
+      if(!dragging) return;
+      dragging=false;
+      d.releasePointerCapture(e.pointerId);
+      if(!moved){
+        if(location==='tray') placeInFirstEmptySlot(t);
+        else removeFromSlot(slotIndex);
+        draw();
+        return;
+      }
+      d.classList.remove('dragging');
+      d.style.left=''; d.style.top='';
+      const dropEl = document.elementFromPoint(e.clientX, e.clientY);
+      const targetSlot = dropEl && dropEl.closest('.tile-slot');
+      const targetTray = dropEl && dropEl.closest('.tile-tray');
+      if(targetSlot){
+        const targetIdx = parseInt(targetSlot.dataset.slotIndex);
+        if(location==='tray'){
+          const occId = slots[targetIdx];
+          slots[targetIdx]=t.id;
+          trayTiles = trayTiles.filter(x=>x.id!==t.id);
+          if(occId) trayTiles.push(tileById(occId));
+        } else if(targetIdx!==slotIndex){
+          const occId = slots[targetIdx];
+          slots[targetIdx]=t.id;
+          slots[slotIndex]=occId||null;
+        }
+      } else if(targetTray && location==='slot'){
+        removeFromSlot(slotIndex);
+      }
+      draw();
+    });
+    return d;
+  }
+
+  function draw(){
+    slotsEl.innerHTML='';
+    slots.forEach((tid,i)=>{
+      const box = document.createElement('div');
+      box.className = 'tile-slot' + (tid?' filled':'');
+      box.dataset.slotIndex=i;
+      if(tid) box.appendChild(makeTileEl(tileById(tid),'slot',i));
+      slotsEl.appendChild(box);
+    });
+    trayEl.innerHTML='';
+    trayTiles.forEach(t=> trayEl.appendChild(makeTileEl(t,'tray',null)));
+    submitBtn.disabled = !slots.every(s=>s!==null);
+  }
+  draw();
+
   const speak = (text)=>{
     if('speechSynthesis' in window){
       window.speechSynthesis.cancel();
@@ -737,10 +873,17 @@ function renderSpell(r){
     setTimeout(()=>speak(q.sentence), 900);
     setTimeout(()=>speak(q.word), 2600);
   };
-  document.getElementById('submitSpell').onclick=()=>{
-    const val = document.getElementById('spellInput').value.trim().toLowerCase();
-    const input = document.getElementById('spellInput');
-    input.disabled=true; document.getElementById('submitSpell').disabled=true;
+  panel.querySelector('#resetTilesBtn').onclick=()=>{
+    slots = new Array(letters.length).fill(null);
+    trayTiles = shuffleTileLetters(letters);
+    draw();
+  };
+  submitBtn.onclick=()=>{
+    const val = slots.map(id=>tileById(id).letter).join('').toLowerCase();
+    submitBtn.disabled=true;
+    panel.querySelector('#resetTilesBtn').disabled=true;
+    slotsEl.querySelectorAll('.tile').forEach(t=>t.style.pointerEvents='none');
+    trayEl.querySelectorAll('.tile').forEach(t=>t.style.pointerEvents='none');
     let earned=0, wasCorrect;
     if(val===q.word.toLowerCase()){
       earned = r.points + timeBonus();
@@ -755,7 +898,7 @@ function renderSpell(r){
     const box = el(`
       <div class="explain-box ${wasCorrect?'ok':'no'}">
         <div class="explain-title">${wasCorrect?`✅ Evidence filed — +${earned} pts`:'🔎 Back to the evidence'}</div>
-        <div class="explain-body">${wasCorrect?`Correctly spelled: <b>${q.word}</b>`:`You wrote "${val||'(blank)'}." The correct spelling is <b>${q.word}</b> — found in: "${q.sentence}"`}</div>
+        <div class="explain-body">${wasCorrect?`Correctly spelled: <b>${q.word}</b>`:`You spelled "${val||'(blank)'}." The correct spelling is <b>${q.word}</b> — found in: "${q.sentence}"`}</div>
         <button class="btn" id="continueBtn">Continue Investigation →</button>
       </div>
     `);
@@ -763,6 +906,24 @@ function renderSpell(r){
     box.scrollIntoView({behavior:'smooth', block:'nearest'});
     document.getElementById('continueBtn').onclick=()=>advanceQuestion(r);
   };
+}
+
+function shuffleTileLetters(items){
+  // Fisher-Yates shuffle guaranteed to not start in the correct spelling order
+  // (works correctly even with repeated letters like the double s in "slush",
+  // since each tile has a unique id regardless of its letter).
+  let arr = items.slice();
+  const isSameOrder = (a)=> a.every((item,idx)=>item.correctIndex===idx);
+  let attempts=0;
+  do{
+    arr = items.slice();
+    for(let i=arr.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [arr[i],arr[j]]=[arr[j],arr[i]];
+    }
+    attempts++;
+  } while(isSameOrder(arr) && attempts<50 && items.length>1);
+  return arr;
 }
 
 function shuffleScrambled(items){
@@ -795,34 +956,88 @@ function renderSequence(r){
       <p class="small">Timeline ${S.seqSetIdx+1} of ${r.sets.length}</p>
       <div class="question-prompt">${set.label}</div>
       <ul class="seq-list" id="seqList"></ul>
+      <p class="tile-hint">Drag a card to reorder it, or tap two cards to swap them.</p>
       <div class="center"><button class="btn" id="lockBtn">Lock In Timeline</button></div>
     </div>
   `);
   app.appendChild(panel);
   const list = panel.querySelector('#seqList');
+  let selectedIdx = null;
+
   function drawList(){
     list.innerHTML='';
+    selectedIdx = null;
     S.seqOrder.forEach((item,idx)=>{
-      const li = el(`<li class="seq-item" draggable="true" data-idx="${idx}"><span class="num">${idx+1}</span><span>${item.text}</span></li>`);
+      const li = document.createElement('li');
+      li.className='seq-item';
+      li.dataset.idx=idx;
+      li.innerHTML = `<span class="num">${idx+1}</span><span>${item.text}</span>`;
+      attachItemInteraction(li, idx);
       list.appendChild(li);
     });
-    attachDrag();
   }
-  function attachDrag(){
-    let dragIdx=null;
-    list.querySelectorAll('.seq-item').forEach(li=>{
-      li.addEventListener('dragstart', e=>{ dragIdx=parseInt(li.dataset.idx); li.classList.add('dragging'); });
-      li.addEventListener('dragend', ()=> li.classList.remove('dragging'));
-      li.addEventListener('dragover', e=> e.preventDefault());
-      li.addEventListener('drop', e=>{
-        e.preventDefault();
-        const dropIdx = parseInt(li.dataset.idx);
-        const moved = S.seqOrder.splice(dragIdx,1)[0];
-        S.seqOrder.splice(dropIdx,0,moved);
-        drawList();
-      });
+
+  function handleTap(idx){
+    if(selectedIdx===null){
+      selectedIdx = idx;
+    } else if(selectedIdx===idx){
+      selectedIdx = null;
+    } else {
+      const tmp = S.seqOrder[selectedIdx];
+      S.seqOrder[selectedIdx] = S.seqOrder[idx];
+      S.seqOrder[idx] = tmp;
+      selectedIdx = null;
+      drawList();
+      return;
+    }
+    list.querySelectorAll('.seq-item').forEach((li,i)=> li.classList.toggle('selected', i===selectedIdx));
+  }
+
+  function attachItemInteraction(li, idx){
+    let startX,startY,dragging=false,moved=false,offX=0,offY=0,origWidth=0;
+    li.addEventListener('pointerdown', e=>{
+      e.preventDefault();
+      dragging=true; moved=false;
+      startX=e.clientX; startY=e.clientY;
+      li.setPointerCapture(e.pointerId);
+      const rect = li.getBoundingClientRect();
+      offX = e.clientX-rect.left; offY = e.clientY-rect.top;
+      origWidth = rect.width;
+    });
+    li.addEventListener('pointermove', e=>{
+      if(!dragging) return;
+      const dx=e.clientX-startX, dy=e.clientY-startY;
+      if(!moved && (Math.abs(dx)>6 || Math.abs(dy)>6)){
+        moved=true;
+        li.style.width = origWidth+'px';
+        li.classList.add('dragging');
+      }
+      if(moved){
+        li.style.left=(e.clientX-offX)+'px';
+        li.style.top=(e.clientY-offY)+'px';
+      }
+    });
+    li.addEventListener('pointerup', e=>{
+      if(!dragging) return;
+      dragging=false;
+      li.releasePointerCapture(e.pointerId);
+      if(!moved){
+        handleTap(idx);
+        return;
+      }
+      li.classList.remove('dragging');
+      li.style.left=''; li.style.top=''; li.style.width='';
+      const dropEl = document.elementFromPoint(e.clientX, e.clientY);
+      const target = dropEl && dropEl.closest('.seq-item');
+      if(target && target!==li){
+        const targetIdx = parseInt(target.dataset.idx);
+        const moved_ = S.seqOrder.splice(idx,1)[0];
+        S.seqOrder.splice(targetIdx,0,moved_);
+      }
+      drawList();
     });
   }
+
   drawList();
   panel.querySelector('#lockBtn').onclick=()=>{
     let correctCount=0;
