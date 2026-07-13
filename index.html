@@ -765,10 +765,29 @@ function renderSpell(r){
   };
 }
 
+function shuffleScrambled(items){
+  // Fisher-Yates shuffle, guaranteed to NOT match the original order
+  // (and for short lists, guaranteed no item stays in its own correct slot).
+  let arr = items.slice();
+  const isSameOrder = (a)=> a.every((item,idx)=>item.correctPos===idx);
+  const hasFixedPoint = (a)=> a.some((item,idx)=>item.correctPos===idx);
+  let attempts = 0;
+  do{
+    arr = items.slice();
+    for(let i=arr.length-1; i>0; i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [arr[i],arr[j]] = [arr[j],arr[i]];
+    }
+    attempts++;
+  } while((isSameOrder(arr) || hasFixedPoint(arr)) && attempts<50);
+  return arr;
+}
+
 function renderSequence(r){
   const set = r.sets[S.seqSetIdx];
   if(!S.seqOrder.length || S.seqOrder.length!==set.events.length){
-    S.seqOrder = set.events.map((e,i)=>({text:e, correctPos:i})).sort(()=>Math.random()-0.5);
+    const items = set.events.map((e,i)=>({text:e, correctPos:i}));
+    S.seqOrder = shuffleScrambled(items);
   }
   const panel = el(`
     <div class="panel">
