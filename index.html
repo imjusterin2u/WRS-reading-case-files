@@ -148,11 +148,28 @@
     box-shadow:0 3px 0 rgba(0,0,0,0.35); text-transform:lowercase;
   }
   .tile:active{cursor:grabbing;}
+  .tile.tile-multi{font-size:17px; letter-spacing:0.5px;}
   .tile.dragging{
     position:fixed; z-index:80; pointer-events:none;
     box-shadow:0 10px 22px rgba(0,0,0,0.5); transform:scale(1.1);
   }
   .tile-hint{font-size:12px; color:#6b6555; text-align:center; margin-top:2px;}
+
+  .step-track{display:flex; justify-content:center; gap:8px; margin:10px 0 20px; flex-wrap:wrap;}
+  .step-dot{
+    font-size:12px; font-family:'Special Elite',monospace; padding:5px 12px; border-radius:14px;
+    border:2px solid var(--paper-line); opacity:0.5; background:rgba(255,255,255,0.3);
+  }
+  .step-dot.active{opacity:1; border-color:var(--red); color:var(--red-dark); font-weight:700;}
+  .step-dot.done{opacity:0.85; border-color:var(--green); color:var(--green);}
+
+  .tap-row{display:flex; justify-content:center; gap:14px; margin:26px 0; flex-wrap:wrap;}
+  .tap-dot{
+    width:58px; height:58px; border-radius:50%; border:3px solid var(--ink); background:#fbf7ec;
+    color:var(--ink); font-family:'Special Elite',monospace; font-size:20px; font-weight:700;
+    cursor:pointer; touch-action:manipulation;
+  }
+  .tap-dot.tapped{background:var(--green); border-color:var(--green); color:#fff;}
 
   .btn{
     background:var(--red); color:var(--chalk); border:none; border-radius:8px;
@@ -284,6 +301,36 @@ function setTeacherPin(newPin){
 }
 function hasCustomPin(){
   return !!localStorage.getItem('brads_bad_day_teacher_pin');
+}
+
+/* ---------------- VOICE SELECTION (text-to-speech) ---------------- */
+function getSelectedVoiceURI(){
+  return localStorage.getItem('brads_bad_day_voice_uri') || '';
+}
+function setSelectedVoiceURI(uri){
+  localStorage.setItem('brads_bad_day_voice_uri', uri);
+}
+function speakText(text, rate){
+  if(!('speechSynthesis' in window)) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = rate || 0.85;
+  const uri = getSelectedVoiceURI();
+  if(uri){
+    const v = window.speechSynthesis.getVoices().find(vv=>vv.voiceURI===uri);
+    if(v) u.voice = v;
+  }
+  window.speechSynthesis.speak(u);
+}
+function populateVoiceSelect(selectEl){
+  function refresh(){
+    const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    const current = selectEl.value || getSelectedVoiceURI();
+    selectEl.innerHTML = '<option value="">Default voice (browser choice)</option>' +
+      voices.map(v=>`<option value="${v.voiceURI}">${v.name} (${v.lang})</option>`).join('');
+    if(current) selectEl.value = current;
+  }
+  refresh();
+  if(window.speechSynthesis) window.speechSynthesis.onvoiceschanged = refresh;
 }
 
 let FIREBASE_OK = false;
@@ -647,11 +694,7 @@ function renderCaseBrief(){
   document.getElementById('readAloudBtn').onclick=()=>{
     if(!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
-    STORY_PARAGRAPHS.forEach(p=>{
-      const u = new SpeechSynthesisUtterance(p);
-      u.rate = 0.9;
-      window.speechSynthesis.speak(u);
-    });
+    STORY_PARAGRAPHS.forEach(p=> speakText(p, 0.9));
   };
   document.getElementById('beginEvidenceBtn').onclick=()=>{
     window.speechSynthesis && window.speechSynthesis.cancel();
@@ -744,17 +787,127 @@ function renderMC(r){
   });
 }
 
+const DIGRAPHS = ['ch','sh','th','wh','ck'];
+function chunkWord(word){
+  const chunks = [];
+  let i=0;
+  while(i<word.length){
+    const two = word.slice(i,i+2);
+    if(DIGRAPHS.includes(two)){ chunks.push(two); i+=2; }
+    else { chunks.push(word[i]); i+=1; }
+  }
+  return chunks;
+}
+const DECOY_POOL = ['b','p','t','d','k','g','m','n','r','l','s','f','v','j','a','e','i','o','u','ch','sh','th','wh','ck'];
+function pickDecoys(correctChunks, count){
+  const avoid = new Set(correctChunks.map(c=>c.toLowerCase()));
+  const pool = DECOY_POOL.filter(c=>!avoid.has(c)).sort(()=>Math.random()-0.5);
+  return pool.slice(0, count);
+}
+
 function renderSpell(r){
   const q = r.questions[S.qIdx];
-  const letters = q.word.split('').map((ch,i)=>({id:'t'+i, letter:ch, correctIndex:i}));
-  let trayTiles = shuffleTileLetters(letters);
-  let slots = new Array(letters.length).fill(null);
+  const correctChunks = chunkWord(q.word.toLowerCase());
+  const correctTiles = correctChunks.map((ch,i)=>({id:'c'+i, letter:ch, correctIndex:i}));
+  const decoyTiles = pickDecoys(correctChunks, 3).map((ch,i)=>({id:'d'+i, letter:ch, correctIndex:-1}));
+  const allTiles = correctTiles.concat(decoyTiles);
+  let trayTiles = shuffleTileLetters(allTiles);
+  let slots = new Array(correctChunks.length).fill(null);
+  let step = 'listen'; // 'listen' -> 'tap' -> 'spell'
 
-  const panel = el(`
-    <div class="panel">
+  const panel = el(`<div class="panel"></div>`);
+  app.appendChild(panel);
+
+  function stepTrack(current){
+    const state = (id)=>{
+      const order=['listen','tap','spell'];
+      if(order.indexOf(id)<order.indexOf(current)) return 'done';
+      if(id===current) return 'active';
+      return '';
+    };
+    return `<div class="step-track">
+      <div class="step-dot ${state('listen')}">1 · Listen</div>
+      <div class="step-dot ${state('tap')}">2 · Pause &amp; Tap</div>
+      <div class="step-dot ${state('spell')}">3 · Spell</div>
+    </div>`;
+  }
+
+  function playWordSequence(){
+    if(!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    speakText(q.word, 0.85);
+    setTimeout(()=>speakText(q.sentence, 0.85), 900);
+    setTimeout(()=>speakText(q.word, 0.85), 2600);
+  }
+
+  function drawStep(){
+    if(step==='listen') drawListen();
+    else if(step==='tap') drawTap();
+    else drawSpell();
+  }
+
+  function drawListen(){
+    panel.innerHTML = `
       <h2>${r.icon} ${r.title}</h2>
       <p class="small">Word ${S.qIdx+1} of ${r.questions.length}</p>
-      <p>Tap 🔊 to hear the word, then drag — or tap — the letter tiles into order below.</p>
+      ${stepTrack('listen')}
+      <div class="question-prompt" style="text-align:center;">Step 1 — Listen</div>
+      <p style="text-align:center;">Tap the button. Listen to the word, hear it in a sentence, then hear the word one more time.</p>
+      <div class="center"><button class="spell-word-btn" id="hearBtn">🔊 Hear the word</button></div>
+      <div class="center" style="margin-top:26px;"><button class="btn" id="toTapBtn">Next: Pause &amp; Tap →</button></div>
+    `;
+    panel.querySelector('#hearBtn').onclick = playWordSequence;
+    panel.querySelector('#toTapBtn').onclick = ()=>{ step='tap'; drawStep(); };
+  }
+
+  function drawTap(){
+    let tapped = 0;
+    panel.innerHTML = `
+      <h2>${r.icon} ${r.title}</h2>
+      <p class="small">Word ${S.qIdx+1} of ${r.questions.length}</p>
+      ${stepTrack('tap')}
+      <div class="question-prompt" style="text-align:center;">Step 2 — Pause &amp; Tap</div>
+      <p style="text-align:center;">Listen again if you need to. Then tap once for each sound you hear, in order.</p>
+      <div class="center"><button class="btn ghost" id="hearAgainBtn">🔊 Hear it again</button></div>
+      <div class="tap-row" id="tapRow"></div>
+      <p class="tile-hint" id="tapHint">Tap sound 1 to begin.</p>
+      <div class="center" style="margin-top:14px;"><button class="btn" id="toSpellBtn" disabled>Next: Spell with Cards →</button></div>
+    `;
+    const tapRow = panel.querySelector('#tapRow');
+    const toSpellBtn = panel.querySelector('#toSpellBtn');
+    const tapHint = panel.querySelector('#tapHint');
+    function drawTaps(){
+      tapRow.innerHTML='';
+      correctChunks.forEach((c,i)=>{
+        const dot = document.createElement('button');
+        dot.className = 'tap-dot' + (i<tapped?' tapped':'');
+        dot.textContent = (i<tapped) ? '✓' : (i+1);
+        dot.onclick = ()=>{
+          if(i===tapped){
+            tapped++;
+            if('speechSynthesis' in window){ window.speechSynthesis.cancel(); speakText(c, 1); }
+            drawTaps();
+            toSpellBtn.disabled = tapped<correctChunks.length;
+            tapHint.textContent = tapped<correctChunks.length
+              ? `Tap sound ${tapped+1} next.`
+              : 'All sounds tapped — nice work!';
+          }
+        };
+        tapRow.appendChild(dot);
+      });
+    }
+    drawTaps();
+    panel.querySelector('#hearAgainBtn').onclick = playWordSequence;
+    toSpellBtn.onclick = ()=>{ step='spell'; drawStep(); };
+  }
+
+  function drawSpell(){
+    panel.innerHTML = `
+      <h2>${r.icon} ${r.title}</h2>
+      <p class="small">Word ${S.qIdx+1} of ${r.questions.length}</p>
+      ${stepTrack('spell')}
+      <div class="question-prompt" style="text-align:center;">Step 3 — Spell with Cards</div>
+      <p style="text-align:center;">Drag — or tap — the letter tiles into order below. A few extra tiles don't belong — leave them in the tray.</p>
       <div class="center"><button class="spell-word-btn" id="hearBtn">🔊 Hear the word</button></div>
       <div class="tile-slots" id="tileSlots"></div>
       <div class="tile-tray" id="tileTray"></div>
@@ -763,149 +916,136 @@ function renderSpell(r){
         <button class="btn ghost" id="resetTilesBtn">Reset Tiles</button>
         <button class="btn" id="submitSpell" disabled>File Evidence</button>
       </div>
-    </div>
-  `);
-  app.appendChild(panel);
+    `;
+    panel.querySelector('#hearBtn').onclick = playWordSequence;
 
-  const slotsEl = panel.querySelector('#tileSlots');
-  const trayEl = panel.querySelector('#tileTray');
-  const submitBtn = panel.querySelector('#submitSpell');
-  const tileById = (id)=> letters.find(l=>l.id===id);
+    const slotsEl = panel.querySelector('#tileSlots');
+    const trayEl = panel.querySelector('#tileTray');
+    const submitBtn = panel.querySelector('#submitSpell');
+    const tileById = (id)=> allTiles.find(l=>l.id===id);
 
-  function placeInFirstEmptySlot(t){
-    const idx = slots.findIndex(s=>s===null);
-    if(idx===-1) return;
-    slots[idx] = t.id;
-    trayTiles = trayTiles.filter(x=>x.id!==t.id);
-  }
-  function removeFromSlot(slotIndex){
-    const tid = slots[slotIndex];
-    if(!tid) return;
-    slots[slotIndex]=null;
-    trayTiles.push(tileById(tid));
-  }
-
-  function makeTileEl(t, location, slotIndex){
-    const d = document.createElement('div');
-    d.className='tile';
-    d.textContent = t.letter;
-    let startX,startY,dragging=false,moved=false,offX=0,offY=0;
-    d.addEventListener('pointerdown', e=>{
-      e.preventDefault();
-      dragging=true; moved=false;
-      startX=e.clientX; startY=e.clientY;
-      d.setPointerCapture(e.pointerId);
-      const rect = d.getBoundingClientRect();
-      offX = e.clientX-rect.left; offY = e.clientY-rect.top;
-    });
-    d.addEventListener('pointermove', e=>{
-      if(!dragging) return;
-      const dx=e.clientX-startX, dy=e.clientY-startY;
-      if(!moved && (Math.abs(dx)>4 || Math.abs(dy)>4)){
-        moved=true;
-        d.classList.add('dragging');
-      }
-      if(moved){
-        d.style.left=(e.clientX-offX)+'px';
-        d.style.top=(e.clientY-offY)+'px';
-      }
-    });
-    d.addEventListener('pointerup', e=>{
-      if(!dragging) return;
-      dragging=false;
-      d.releasePointerCapture(e.pointerId);
-      if(!moved){
-        if(location==='tray') placeInFirstEmptySlot(t);
-        else removeFromSlot(slotIndex);
-        draw();
-        return;
-      }
-      d.classList.remove('dragging');
-      d.style.left=''; d.style.top='';
-      const dropEl = document.elementFromPoint(e.clientX, e.clientY);
-      const targetSlot = dropEl && dropEl.closest('.tile-slot');
-      const targetTray = dropEl && dropEl.closest('.tile-tray');
-      if(targetSlot){
-        const targetIdx = parseInt(targetSlot.dataset.slotIndex);
-        if(location==='tray'){
-          const occId = slots[targetIdx];
-          slots[targetIdx]=t.id;
-          trayTiles = trayTiles.filter(x=>x.id!==t.id);
-          if(occId) trayTiles.push(tileById(occId));
-        } else if(targetIdx!==slotIndex){
-          const occId = slots[targetIdx];
-          slots[targetIdx]=t.id;
-          slots[slotIndex]=occId||null;
+    function placeInFirstEmptySlot(t){
+      const idx = slots.findIndex(s=>s===null);
+      if(idx===-1) return;
+      slots[idx] = t.id;
+      trayTiles = trayTiles.filter(x=>x.id!==t.id);
+    }
+    function removeFromSlot(slotIndex){
+      const tid = slots[slotIndex];
+      if(!tid) return;
+      slots[slotIndex]=null;
+      trayTiles.push(tileById(tid));
+    }
+    function makeTileEl(t, location, slotIndex){
+      const d = document.createElement('div');
+      d.className='tile' + (t.letter.length>1?' tile-multi':'');
+      d.textContent = t.letter;
+      let startX,startY,dragging=false,moved=false,offX=0,offY=0;
+      d.addEventListener('pointerdown', e=>{
+        e.preventDefault();
+        dragging=true; moved=false;
+        startX=e.clientX; startY=e.clientY;
+        d.setPointerCapture(e.pointerId);
+        const rect = d.getBoundingClientRect();
+        offX = e.clientX-rect.left; offY = e.clientY-rect.top;
+      });
+      d.addEventListener('pointermove', e=>{
+        if(!dragging) return;
+        const dx=e.clientX-startX, dy=e.clientY-startY;
+        if(!moved && (Math.abs(dx)>4 || Math.abs(dy)>4)){
+          moved=true;
+          d.classList.add('dragging');
         }
-      } else if(targetTray && location==='slot'){
-        removeFromSlot(slotIndex);
-      }
-      draw();
-    });
-    return d;
-  }
-
-  function draw(){
-    slotsEl.innerHTML='';
-    slots.forEach((tid,i)=>{
-      const box = document.createElement('div');
-      box.className = 'tile-slot' + (tid?' filled':'');
-      box.dataset.slotIndex=i;
-      if(tid) box.appendChild(makeTileEl(tileById(tid),'slot',i));
-      slotsEl.appendChild(box);
-    });
-    trayEl.innerHTML='';
-    trayTiles.forEach(t=> trayEl.appendChild(makeTileEl(t,'tray',null)));
-    submitBtn.disabled = !slots.every(s=>s!==null);
-  }
-  draw();
-
-  const speak = (text)=>{
-    if('speechSynthesis' in window){
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.rate=0.85;
-      window.speechSynthesis.speak(u);
+        if(moved){
+          d.style.left=(e.clientX-offX)+'px';
+          d.style.top=(e.clientY-offY)+'px';
+        }
+      });
+      d.addEventListener('pointerup', e=>{
+        if(!dragging) return;
+        dragging=false;
+        d.releasePointerCapture(e.pointerId);
+        if(!moved){
+          if(location==='tray') placeInFirstEmptySlot(t);
+          else removeFromSlot(slotIndex);
+          draw();
+          return;
+        }
+        d.classList.remove('dragging');
+        d.style.left=''; d.style.top='';
+        const dropEl = document.elementFromPoint(e.clientX, e.clientY);
+        const targetSlot = dropEl && dropEl.closest('.tile-slot');
+        const targetTray = dropEl && dropEl.closest('.tile-tray');
+        if(targetSlot){
+          const targetIdx = parseInt(targetSlot.dataset.slotIndex);
+          if(location==='tray'){
+            const occId = slots[targetIdx];
+            slots[targetIdx]=t.id;
+            trayTiles = trayTiles.filter(x=>x.id!==t.id);
+            if(occId) trayTiles.push(tileById(occId));
+          } else if(targetIdx!==slotIndex){
+            const occId = slots[targetIdx];
+            slots[targetIdx]=t.id;
+            slots[slotIndex]=occId||null;
+          }
+        } else if(targetTray && location==='slot'){
+          removeFromSlot(slotIndex);
+        }
+        draw();
+      });
+      return d;
     }
-  };
-  document.getElementById('hearBtn').onclick=()=>{
-    speak(q.word);
-    setTimeout(()=>speak(q.sentence), 900);
-    setTimeout(()=>speak(q.word), 2600);
-  };
-  panel.querySelector('#resetTilesBtn').onclick=()=>{
-    slots = new Array(letters.length).fill(null);
-    trayTiles = shuffleTileLetters(letters);
+    function draw(){
+      slotsEl.innerHTML='';
+      slots.forEach((tid,i)=>{
+        const box = document.createElement('div');
+        box.className = 'tile-slot' + (tid?' filled':'');
+        box.dataset.slotIndex=i;
+        if(tid) box.appendChild(makeTileEl(tileById(tid),'slot',i));
+        slotsEl.appendChild(box);
+      });
+      trayEl.innerHTML='';
+      trayTiles.forEach(t=> trayEl.appendChild(makeTileEl(t,'tray',null)));
+      submitBtn.disabled = !slots.every(s=>s!==null);
+    }
     draw();
-  };
-  submitBtn.onclick=()=>{
-    const val = slots.map(id=>tileById(id).letter).join('').toLowerCase();
-    submitBtn.disabled=true;
-    panel.querySelector('#resetTilesBtn').disabled=true;
-    slotsEl.querySelectorAll('.tile').forEach(t=>t.style.pointerEvents='none');
-    trayEl.querySelectorAll('.tile').forEach(t=>t.style.pointerEvents='none');
-    let earned=0, wasCorrect;
-    if(val===q.word.toLowerCase()){
-      earned = r.points + timeBonus();
-      S.score += earned;
-      stamp('correct');
-      wasCorrect=true;
-    } else {
-      stamp('wrong');
-      wasCorrect=false;
-    }
-    syncSelf();
-    const box = el(`
-      <div class="explain-box ${wasCorrect?'ok':'no'}">
-        <div class="explain-title">${wasCorrect?`✅ Evidence filed — +${earned} pts`:'🔎 Back to the evidence'}</div>
-        <div class="explain-body">${wasCorrect?`Correctly spelled: <b>${q.word}</b>`:`You spelled "${val||'(blank)'}." The correct spelling is <b>${q.word}</b> — found in: "${q.sentence}"`}</div>
-        <button class="btn" id="continueBtn">Continue Investigation →</button>
-      </div>
-    `);
-    panel.appendChild(box);
-    box.scrollIntoView({behavior:'smooth', block:'nearest'});
-    document.getElementById('continueBtn').onclick=()=>advanceQuestion(r);
-  };
+
+    panel.querySelector('#resetTilesBtn').onclick=()=>{
+      slots = new Array(correctChunks.length).fill(null);
+      trayTiles = shuffleTileLetters(allTiles);
+      draw();
+    };
+    submitBtn.onclick=()=>{
+      const val = slots.map(id=>tileById(id).letter).join('').toLowerCase();
+      submitBtn.disabled=true;
+      panel.querySelector('#resetTilesBtn').disabled=true;
+      slotsEl.querySelectorAll('.tile').forEach(t=>t.style.pointerEvents='none');
+      trayEl.querySelectorAll('.tile').forEach(t=>t.style.pointerEvents='none');
+      let earned=0, wasCorrect;
+      if(val===q.word.toLowerCase()){
+        earned = r.points + timeBonus();
+        S.score += earned;
+        stamp('correct');
+        wasCorrect=true;
+      } else {
+        stamp('wrong');
+        wasCorrect=false;
+      }
+      syncSelf();
+      const box = el(`
+        <div class="explain-box ${wasCorrect?'ok':'no'}">
+          <div class="explain-title">${wasCorrect?`✅ Evidence filed — +${earned} pts`:'🔎 Back to the evidence'}</div>
+          <div class="explain-body">${wasCorrect?`Correctly spelled: <b>${q.word}</b>`:`You spelled "${val||'(blank)'}." The correct spelling is <b>${q.word}</b> — found in: "${q.sentence}"`}</div>
+          <button class="btn" id="continueBtn">Continue Investigation →</button>
+        </div>
+      `);
+      panel.appendChild(box);
+      box.scrollIntoView({behavior:'smooth', block:'nearest'});
+      document.getElementById('continueBtn').onclick=()=>advanceQuestion(r);
+    };
+  }
+
+  drawStep();
 }
 
 function shuffleTileLetters(items){
@@ -1137,11 +1277,24 @@ function openTeacher(){
     <hr>
     <p class="small"><b>Answer key</b> — all correct answers are index 0-based option order or the target spelling word, listed in the ROUNDS data at the top of the script for quick reference during discussion.</p>
     <p class="small"><b>Pacing tip:</b> pause between each Case File for 3-5 minutes of verbal discussion/review to comfortably stretch this to 50+ minutes.</p>
+    <hr>
+    <p class="small"><b>🔊 Reading voice</b> — choose which computer voice reads the case brief and dictates spelling words on this device.</p>
+    <select id="voiceSelect" style="width:100%; padding:9px; border-radius:6px; border:2px solid var(--paper-line); font-family:'Libre Franklin',sans-serif; margin-bottom:8px;"></select>
+    <button class="btn ghost" id="testVoiceBtn">🔊 Test Voice</button>
+    <hr>
     <button class="btn" id="resetBtn">Reset My Progress</button>
     <button class="btn ghost" id="changePinBtn">Change PIN</button>
     <button class="btn ghost" id="closeTeacher">Close</button>
   </div></div>`);
   document.body.appendChild(bg);
+  const voiceSelect = document.getElementById('voiceSelect');
+  populateVoiceSelect(voiceSelect);
+  voiceSelect.onchange = ()=> setSelectedVoiceURI(voiceSelect.value);
+  document.getElementById('testVoiceBtn').onclick = ()=>{
+    if(!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    speakText('The brisk, cold wind blew past the front step.', 0.85);
+  };
   document.getElementById('changePinBtn').onclick=()=>{
     const newPin = prompt('Enter a new teacher PIN (4+ digits):');
     if(newPin && newPin.trim().length>=4){ setTeacherPin(newPin.trim()); alert('PIN updated.'); }
