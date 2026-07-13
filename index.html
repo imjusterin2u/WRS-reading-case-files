@@ -175,10 +175,13 @@
   .final-card{background:#fbf7ec; border:2px solid var(--brass); border-radius:10px; padding:16px; text-align:center;}
   .final-card .big{font-family:'Special Elite',monospace; font-size:34px; color:var(--red-dark);}
   .teacher-toggle{
-    position:fixed; bottom:14px; right:14px; background:var(--ink2); color:var(--chalk);
-    border:1px solid var(--brass); border-radius:20px; padding:8px 14px; font-size:12px; cursor:pointer;
-    opacity:0.6;
+    position:fixed; bottom:16px; right:16px; background:var(--red);
+    color:#fff; border:2px solid var(--brass); border-radius:24px;
+    padding:11px 18px; font-size:13px; font-weight:700; cursor:pointer;
+    font-family:'Libre Franklin',sans-serif; box-shadow:0 4px 14px rgba(0,0,0,0.5);
+    z-index:70; opacity:1;
   }
+  .teacher-toggle:hover{background:var(--red-dark);}
   .modal-bg{
     position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:center;
     justify-content:center; z-index:60; padding:16px;
@@ -239,7 +242,16 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "485219482921",
   appId: "1:485219482921:web:c4cd49eef792195fd00b38"
 };
-const TEACHER_PIN = "2468";
+const DEFAULT_TEACHER_PIN = "2468"; // fallback only — used until you set your own PIN below
+function getTeacherPin(){
+  return localStorage.getItem('brads_bad_day_teacher_pin') || DEFAULT_TEACHER_PIN;
+}
+function setTeacherPin(newPin){
+  localStorage.setItem('brads_bad_day_teacher_pin', newPin);
+}
+function hasCustomPin(){
+  return !!localStorage.getItem('brads_bad_day_teacher_pin');
+}
 
 let FIREBASE_OK = false;
 let db = null;
@@ -867,8 +879,16 @@ function renderFinished(){
 
 /* ---------------- TEACHER TOOLS ---------------- */
 function openTeacher(){
+  if(!hasCustomPin()){
+    const p1 = prompt('No teacher PIN is set yet. Create one now (4+ digits):');
+    if(p1===null) return;
+    if(p1.trim().length<4){ alert('PIN must be at least 4 characters. Try again.'); return; }
+    setTeacherPin(p1.trim());
+    alert('Teacher PIN set! Use it from now on to open Teacher Tools on this device/browser.');
+  }
   const pin = prompt('Teacher PIN:');
-  if(pin!==TEACHER_PIN){ if(pin!==null) alert('Incorrect PIN.'); return; }
+  if(pin===null) return;
+  if(pin!==getTeacherPin()){ alert('Incorrect PIN.'); return; }
   const bg = el(`<div class="modal-bg"><div class="modal">
     <h2 class="type">🕵️ Teacher Tools</h2>
     <p class="small">Firebase status: ${FIREBASE_OK?'Connected ✅':'Not connected — offline mode ⚠️'}</p>
@@ -879,9 +899,15 @@ function openTeacher(){
     <p class="small"><b>Answer key</b> — all correct answers are index 0-based option order or the target spelling word, listed in the ROUNDS data at the top of the script for quick reference during discussion.</p>
     <p class="small"><b>Pacing tip:</b> pause between each Case File for 3-5 minutes of verbal discussion/review to comfortably stretch this to 50+ minutes.</p>
     <button class="btn" id="resetBtn">Reset My Progress</button>
+    <button class="btn ghost" id="changePinBtn">Change PIN</button>
     <button class="btn ghost" id="closeTeacher">Close</button>
   </div></div>`);
   document.body.appendChild(bg);
+  document.getElementById('changePinBtn').onclick=()=>{
+    const newPin = prompt('Enter a new teacher PIN (4+ digits):');
+    if(newPin && newPin.trim().length>=4){ setTeacherPin(newPin.trim()); alert('PIN updated.'); }
+    else if(newPin!==null){ alert('PIN must be at least 4 characters — not changed.'); }
+  };
   document.getElementById('closeTeacher').onclick=()=>bg.remove();
   document.getElementById('resetBtn').onclick=()=>{
     S.roundIdx=0; S.qIdx=0; S.score=0; S.seqSetIdx=0; S.seqOrder=[]; S.finished=false;
