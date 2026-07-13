@@ -170,6 +170,7 @@
     cursor:pointer; touch-action:manipulation;
   }
   .tap-dot.tapped{background:var(--green); border-color:var(--green); color:#fff;}
+  .tap-dot.tap-dot-multi{font-size:16px; letter-spacing:0.5px;}
 
   .btn{
     background:var(--red); color:var(--chalk); border:none; border-radius:8px;
@@ -867,10 +868,10 @@ function renderSpell(r){
       <p class="small">Word ${S.qIdx+1} of ${r.questions.length}</p>
       ${stepTrack('tap')}
       <div class="question-prompt" style="text-align:center;">Step 2 — Pause &amp; Tap</div>
-      <p style="text-align:center;">Listen again if you need to. Then tap once for each sound you hear, in order.</p>
+      <p style="text-align:center;">Listen again if you need to. Then tap each card in order and say the sound out loud.</p>
       <div class="center"><button class="btn ghost" id="hearAgainBtn">🔊 Hear it again</button></div>
       <div class="tap-row" id="tapRow"></div>
-      <p class="tile-hint" id="tapHint">Tap sound 1 to begin.</p>
+      <p class="tile-hint" id="tapHint">Tap card 1 and say its sound.</p>
       <div class="center" style="margin-top:14px;"><button class="btn" id="toSpellBtn" disabled>Next: Spell with Cards →</button></div>
     `;
     const tapRow = panel.querySelector('#tapRow');
@@ -880,16 +881,15 @@ function renderSpell(r){
       tapRow.innerHTML='';
       correctChunks.forEach((c,i)=>{
         const dot = document.createElement('button');
-        dot.className = 'tap-dot' + (i<tapped?' tapped':'');
-        dot.textContent = (i<tapped) ? '✓' : (i+1);
+        dot.className = 'tap-dot' + (i<tapped?' tapped':'') + (c.length>1?' tap-dot-multi':'');
+        dot.textContent = (i<tapped) ? c : (i+1);
         dot.onclick = ()=>{
           if(i===tapped){
             tapped++;
-            if('speechSynthesis' in window){ window.speechSynthesis.cancel(); speakText(c, 1); }
             drawTaps();
             toSpellBtn.disabled = tapped<correctChunks.length;
             tapHint.textContent = tapped<correctChunks.length
-              ? `Tap sound ${tapped+1} next.`
+              ? `Tap card ${tapped+1} and say its sound.`
               : 'All sounds tapped — nice work!';
           }
         };
