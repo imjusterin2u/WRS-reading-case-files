@@ -977,9 +977,23 @@ function timeBonus(){
   return Math.max(0, Math.round((20-elapsedSec)/20*5));
 }
 
+function shuffleArray(arr){
+  let a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
 function renderMC(r){
   const q = r.questions[S.qIdx];
   let attempt = 0;
+  // Shuffle option order fresh every time this question renders — so the
+  // correct answer's on-screen position varies across replays/restarts
+  // and can't be memorized by position alone.
+  const order = shuffleArray(q.options.map((_,i)=>i)); // order[displayPos] = original option index
+  const correctDisplayPos = order.indexOf(q.answer);
   const panel = el(`
     <div class="panel">
       <h2>${r.icon} ${r.title}</h2>
@@ -987,7 +1001,7 @@ function renderMC(r){
       ${q.context?`<div class="clue-quote">${q.context}</div>`:''}
       <div class="question-prompt">${q.prompt}</div>
       <div class="options">
-        ${q.options.map((o,i)=>`<button class="opt-btn" data-i="${i}">${o}</button>`).join('')}
+        ${order.map((origIdx,pos)=>`<button class="opt-btn" data-i="${pos}">${q.options[origIdx]}</button>`).join('')}
       </div>
       <p class="tile-hint mc-nudge" style="display:none;"></p>
     </div>
@@ -999,7 +1013,7 @@ function renderMC(r){
     btn.onclick=()=>{
       const i = parseInt(btn.dataset.i);
       attempt++;
-      const isCorrect = i===q.answer;
+      const isCorrect = i===correctDisplayPos;
       const isFinal = isCorrect || attempt>=2;
 
       if(!isFinal){
@@ -1021,7 +1035,7 @@ function renderMC(r){
         stamp('correct');
       } else {
         btn.classList.add('wrong');
-        panel.querySelectorAll('.opt-btn')[q.answer].classList.add('correct');
+        panel.querySelectorAll('.opt-btn')[correctDisplayPos].classList.add('correct');
         stamp('wrong');
       }
       syncSelf();
