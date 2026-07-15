@@ -39,7 +39,7 @@
     min-height:100vh;
   }
   .type{font-family:'Special Elite', monospace; letter-spacing:0.5px;}
-  #app{max-width:920px; margin:0 auto; padding:18px 16px 60px;}
+  #app{max-width:1080px; margin:0 auto; padding:18px 16px 60px;}
 
   /* ---- header / corkboard ---- */
   .masthead{text-align:center; padding:18px 0 8px;}
@@ -80,7 +80,7 @@
     position:absolute; top:-8px; right:-6px; font-size:16px;
   }
 
-  .race-bar{max-width:920px; margin:0 auto 18px; display:flex; gap:10px;}
+  .race-bar{max-width:1080px; margin:0 auto 18px; display:flex; gap:10px;}
   .race-card{
     flex:1; background:var(--ink2); border:1px solid #3a4258; border-radius:10px;
     padding:10px 12px;
@@ -280,7 +280,7 @@
 
   .case-doc{
     background:#fbf7ec; border:1px solid var(--paper-line); border-radius:8px;
-    padding:18px 20px; margin:0; line-height:1.9; font-size:16px; position:relative;
+    padding:20px 24px; margin:0; line-height:1.9; font-size:19px; position:relative;
   }
   .case-doc p{margin:0 0 14px;}
   .case-doc p:last-child{margin-bottom:0;}
@@ -868,11 +868,25 @@ function renderCaseBrief(){
   sizeCanvas();
   window.addEventListener('resize', sizeCanvas);
 
+  function setCanvasCursor(tool){
+    if(tool==='pencil'){
+      const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14'><circle cx='7' cy='7' r='2.5' fill='rgb(163,49,42)' stroke='white' stroke-width='1'/></svg>`;
+      canvas.style.cursor = `url("data:image/svg+xml;base64,${btoa(svg)}") 7 7, crosshair`;
+    } else if(tool==='eraser'){
+      const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18'><rect x='2' y='2' width='14' height='14' fill='none' stroke='rgb(163,49,42)' stroke-width='2'/></svg>`;
+      canvas.style.cursor = `url("data:image/svg+xml;base64,${btoa(svg)}") 9 9, crosshair`;
+    } else {
+      canvas.style.cursor = 'pointer';
+    }
+  }
+  setCanvasCursor(activeTool);
+
   panel.querySelectorAll('.tool-btn[data-tool]').forEach(btn=>{
     btn.onclick=()=>{
       activeTool = btn.dataset.tool;
       panel.querySelectorAll('.tool-btn[data-tool]').forEach(b=>b.classList.toggle('active', b===btn));
       canvas.style.pointerEvents = activeTool==='circle' ? 'none' : 'auto';
+      setCanvasCursor(activeTool);
     };
   });
 
@@ -889,7 +903,7 @@ function renderCaseBrief(){
     const x = e.clientX-rect.left, y = e.clientY-rect.top;
     ctx.globalCompositeOperation = activeTool==='eraser' ? 'destination-out' : 'source-over';
     ctx.strokeStyle = '#a3312a';
-    ctx.lineWidth = activeTool==='eraser' ? 20 : 3;
+    ctx.lineWidth = activeTool==='eraser' ? 20 : 1.75;
     ctx.lineCap='round'; ctx.lineJoin='round';
     ctx.beginPath();
     ctx.moveTo(lastX,lastY);
