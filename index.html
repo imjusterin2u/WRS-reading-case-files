@@ -21,6 +21,12 @@
     --chalk:#f4efe1;
     --pencil:#332f28;
     --green:#3f6b4a;
+    --wrs-yellow:#f4e28c;
+    --wrs-yellow-border:#c9a836;
+    --wrs-pink:#eabfa8;
+    --wrs-pink-border:#c98a63;
+    --wrs-welded:#b9d3bd;
+    --wrs-welded-border:#5c8a66;
   }
   *{box-sizing:border-box;}
   body{
@@ -108,6 +114,7 @@
   .opt-btn:hover{border-color:var(--brass); transform:translateX(2px);}
   .opt-btn.correct{background:#dcebe0; border-color:var(--green); color:var(--green);}
   .opt-btn.wrong{background:#f3dcda; border-color:var(--red); color:var(--red-dark);}
+  .opt-btn.eliminated{opacity:0.4; text-decoration:line-through; background:#f3dcda; border-color:var(--paper-line);}
   .opt-btn:disabled{cursor:default;}
 
   .timer-wrap{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
@@ -136,6 +143,7 @@
     display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.35);
   }
   .tile-slot.filled{border-style:solid; border-color:var(--brass); background:transparent;}
+  .tile-slot.locked{border-color:var(--green); background:rgba(63,107,74,0.08);}
   .tile-tray{
     display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:6px 0 4px;
     min-height:66px; padding:10px; border:2px solid var(--paper-line); border-radius:10px;
@@ -149,6 +157,10 @@
   }
   .tile:active{cursor:grabbing;}
   .tile.tile-multi{font-size:17px; letter-spacing:0.5px;}
+  .tile.tile-locked{background:var(--green); color:#fff; cursor:default; box-shadow:none;}
+  .tile.tile-consonant{background:var(--wrs-yellow); color:var(--pencil); box-shadow:0 3px 0 var(--wrs-yellow-border);}
+  .tile.tile-vowel{background:var(--wrs-pink); color:var(--pencil); box-shadow:0 3px 0 var(--wrs-pink-border);}
+  .tile.tile-welded{background:var(--wrs-welded); color:var(--pencil); box-shadow:0 3px 0 var(--wrs-welded-border);}
   .tile.dragging{
     position:fixed; z-index:80; pointer-events:none;
     box-shadow:0 10px 22px rgba(0,0,0,0.5); transform:scale(1.1);
@@ -170,7 +182,16 @@
     cursor:pointer; touch-action:manipulation;
   }
   .tap-dot.tapped{background:var(--green); border-color:var(--green); color:#fff;}
+  .tap-dot.tap-tile-consonant{border-color:var(--wrs-yellow-border); background:#fdf6dc;}
+  .tap-dot.tap-tile-vowel{border-color:var(--wrs-pink-border); background:#fbeae1;}
+  .tap-dot.tap-tile-welded{border-color:var(--wrs-welded-border); background:#eaf3ec;}
   .tap-dot.tap-dot-multi{font-size:16px; letter-spacing:0.5px;}
+
+  .story-grid{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); margin:16px 0;}
+  .story-card{background:#fbf7ec; border:2px solid var(--paper-line); border-radius:10px; padding:16px; text-align:center;}
+  .story-card-title{font-family:'Special Elite',monospace; font-size:17px; color:var(--red-dark); margin-bottom:4px;}
+  .story-card-sub{font-size:12px; color:#6b6555; margin-bottom:8px;}
+  .story-card-blurb{font-size:13px; margin-bottom:12px;}
 
   .btn{
     background:var(--red); color:var(--chalk); border:none; border-radius:8px;
@@ -193,6 +214,10 @@
     box-shadow:0 10px 22px rgba(0,0,0,0.5); background:#fff;
   }
   .seq-item.selected{border-color:var(--brass); box-shadow:0 0 0 2px var(--brass) inset;}
+  .seq-item.locked{
+    background:#dcebe0; border-color:var(--green); cursor:default; opacity:0.9;
+  }
+  .seq-item .lock-icon{margin-left:auto; font-size:14px;}
   .seq-item .num{
     width:24px; height:24px; border-radius:50%; background:var(--ink); color:var(--chalk);
     display:flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0;
@@ -255,7 +280,7 @@
 
   .case-doc{
     background:#fbf7ec; border:1px solid var(--paper-line); border-radius:8px;
-    padding:18px 20px; margin:14px 0; line-height:1.75; font-size:16px;
+    padding:18px 20px; margin:0; line-height:1.9; font-size:16px; position:relative;
   }
   .case-doc p{margin:0 0 14px;}
   .case-doc p:last-child{margin-bottom:0;}
@@ -263,6 +288,20 @@
   .term-chip{
     background:var(--ink); color:var(--brass); font-family:'Special Elite',monospace;
     font-size:13px; padding:4px 10px; border-radius:14px;
+  }
+
+  .mark-toolbar{display:flex; gap:8px; flex-wrap:wrap; margin:14px 0 10px; align-items:center;}
+  .tool-btn{
+    font-size:13px; padding:8px 14px; border-radius:8px; border:2px solid var(--paper-line);
+    background:#fbf7ec; color:var(--pencil); cursor:pointer; font-family:'Libre Franklin',sans-serif; font-weight:600;
+  }
+  .tool-btn.active{border-color:var(--red); background:var(--red); color:#fff;}
+  .case-doc-wrap{position:relative; margin:14px 0;}
+  #markCanvas{position:absolute; top:0; left:0; touch-action:none; cursor:crosshair;}
+  .hf-word{cursor:pointer; padding:1px 3px;}
+  .hf-word.circled{
+    border:2px solid var(--red); border-radius:50%; padding:1px 8px;
+    box-shadow:0 0 0 1px rgba(163,49,42,0.15);
   }
 </style>
 </head>
@@ -345,15 +384,15 @@ try{
 }catch(e){ console.warn("Firebase not configured yet, running offline.", e); }
 
 /* ---------------- CONTENT ---------------- */
-const KEY_TERMS = ['front','said','out','only','about','go','way','time','going','day','came','home','better'];
-const STORY_PARAGRAPHS = [
+const KEY_TERMS_BRADS_BAD_DAY = ['front','said','out','only','about','go','way','time','going','day','came','home','better'];
+const STORY_PARAGRAPHS_BRADS_BAD_DAY = [
   `Brad fell in the slush by his front step and his bag was all wet. Brad did think that fall would be the last of his bad luck for now. He said he would try to go on and he kept his chin up on the way to the bus stop.`,
   `Brad then had to rush to get the bus and he cut his leg on a branch. Now he had to run with a limp just to get there in time. When the bus went past his stop, Brad said, "What is going on?" He then had to call a cab and stand in the brisk, cold wind. The cab did not come for a long time. It got lost on its way to get Brad. At last, Brad got to his job at the shop where he sold prints.`,
   `At the shop, Brad did not sell any prints. He did help a gal, but she did not get her cash out to spend and Brad felt grim. The day did drag. How long could Brad's bad luck last?`,
   `At last, Brad's shift came to an end, and he went to get the bus. If only he could have a swift trip back home! But, his bad luck did not end. As the bus was about to come to the last stop, it got a flat when it ran into a trench of mud! Brad had such a bad day and felt that a spell was cast on him. The next day had to be better.`,
 ];
 
-const ROUNDS = [
+const ROUNDS_BRADS_BAD_DAY = [
   { id:'sequence', tab:'Timeline', title:"Case File 1 — Timeline Reconstruction", icon:'🗺️',
     intro:"Drag the evidence into the correct order to rebuild Brad's timeline.",
     type:'sequence', points:5,
@@ -486,9 +525,54 @@ const ROUNDS = [
 
 ];
 
+const STORY_PACKS = {
+  brads_bad_day: {
+    id: 'brads_bad_day',
+    title: "Brad's Bad Day",
+    substep: '2.4B',
+    blurb: 'A string of unlucky mishaps on the way to work — closed syllables, blends, and digraphs.',
+    keyTerms: KEY_TERMS_BRADS_BAD_DAY,
+    paragraphs: STORY_PARAGRAPHS_BRADS_BAD_DAY,
+    rounds: ROUNDS_BRADS_BAD_DAY,
+  },
+  /* -----------------------------------------------------------------
+     TO ADD A NEW STORY: copy the object above, give it a new key and
+     a matching id, then fill in:
+       title      -> story title
+       substep    -> WRS substep label shown in the masthead (e.g. "3.2A")
+       blurb      -> one line shown on the story-picker card
+       keyTerms   -> the high-frequency words listed at the top of the page
+       paragraphs -> array of story paragraph strings
+       rounds     -> array of 5 case files (sequence, inference, vocab,
+                     spelling, structure) built the same way as the
+                     ROUNDS_BRADS_BAD_DAY array above, with content
+                     pulled from the new passage
+     Then add the key to STORY_ORDER below so it appears in the picker.
+  ----------------------------------------------------------------- */
+};
+const STORY_ORDER = ['brads_bad_day'];
+const DEFAULT_STORY_ID = 'brads_bad_day';
+
+let ROUNDS = [];
+let STORY_PARAGRAPHS = [];
+let KEY_TERMS = [];
+let CURRENT_STORY_TITLE = '';
+let CURRENT_STORY_SUBSTEP = '';
+
+function loadStoryPack(id){
+  const pack = STORY_PACKS[id] || STORY_PACKS[DEFAULT_STORY_ID];
+  S.storyId = pack.id;
+  ROUNDS = pack.rounds;
+  STORY_PARAGRAPHS = pack.paragraphs;
+  KEY_TERMS = pack.keyTerms;
+  CURRENT_STORY_TITLE = pack.title;
+  CURRENT_STORY_SUBSTEP = pack.substep;
+}
+
 /* ---------------- STATE ---------------- */
 let S = {
-  screen:'welcome',
+  screen:'storyPicker',
+  storyId:null,
   mode:null,          // 'host' | 'join' | 'offline'
   code:null,
   playerSlot:null,    // 1 or 2
@@ -575,9 +659,11 @@ function raceBarHTML(){
 }
 
 function masthead(){
+  const title = CURRENT_STORY_TITLE || 'Detective Division';
+  const substep = CURRENT_STORY_SUBSTEP ? `WRS · SUBSTEP ${CURRENT_STORY_SUBSTEP} · DETECTIVE DIVISION` : 'WRS · DETECTIVE DIVISION';
   return `<div class="masthead">
-    <div class="badge">WRS · SUBSTEP 2.4B · DETECTIVE DIVISION</div>
-    <h1 class="type">Case File: Brad's Bad Day</h1>
+    <div class="badge">${substep}</div>
+    <h1 class="type">${CURRENT_STORY_TITLE ? `Case File: ${title}` : 'Detective Case Files'}</h1>
     <p>Two detectives. One case. Race to close the file.</p>
   </div>`;
 }
@@ -589,15 +675,55 @@ function stamp(kind){
   setTimeout(()=>s.remove(), 900);
 }
 
+function openStoryModal(){
+  const bg = el(`<div class="modal-bg"><div class="modal">
+    <h2 class="type">📁 Case Brief — ${CURRENT_STORY_TITLE}</h2>
+    <div class="case-doc">${STORY_PARAGRAPHS.map(p=>`<p>${p}</p>`).join('')}</div>
+    <div class="center" style="margin-top:14px;"><button class="btn" id="closeStoryModal">Close</button></div>
+  </div></div>`);
+  document.body.appendChild(bg);
+  document.getElementById('closeStoryModal').onclick=()=>bg.remove();
+}
+
 /* ---------------- SCREENS ---------------- */
 function render(){
   app.innerHTML='';
+  if(S.screen==='storyPicker') return renderStoryPicker();
   if(S.screen==='welcome') return renderWelcome();
   if(S.screen==='lobby') return renderLobby();
   if(S.screen==='caseBrief') return renderCaseBrief();
   if(S.screen==='roundIntro') return renderRoundIntro();
   if(S.screen==='question') return renderQuestion();
   if(S.screen==='finished') return renderFinished();
+}
+
+function renderStoryPicker(){
+  app.appendChild(el(masthead()));
+  const cardsHtml = STORY_ORDER.map(id=>{
+    const p = STORY_PACKS[id];
+    return `<div class="story-card">
+      <div class="story-card-title">${p.title}</div>
+      <div class="story-card-sub">WRS Substep ${p.substep}</div>
+      <p class="story-card-blurb">${p.blurb}</p>
+      <button class="btn" data-story="${id}">Select This Case</button>
+    </div>`;
+  }).join('');
+  const panel = el(`
+    <div class="panel">
+      <h2>📂 Choose a Case File</h2>
+      <p>Pick which WRS story this investigation is built around.</p>
+      <div class="story-grid">${cardsHtml}</div>
+      <p class="small" style="margin-top:16px;">Joining a partner's case instead? Pick any card to continue — if you enter a case code on the next screen, your partner's story takes over automatically.</p>
+    </div>
+  `);
+  app.appendChild(panel);
+  panel.querySelectorAll('[data-story]').forEach(btn=>{
+    btn.onclick=()=>{
+      loadStoryPack(btn.dataset.story);
+      S.screen='welcome';
+      render();
+    };
+  });
 }
 
 function renderWelcome(){
@@ -633,9 +759,10 @@ function renderWelcome(){
 function startAsHost(){
   const name = document.getElementById('nameInput').value.trim() || 'Detective 1';
   S.name=name; S.playerSlot=1; S.mode = FIREBASE_OK ? 'host' : 'offline';
+  if(!S.storyId) loadStoryPack(DEFAULT_STORY_ID);
   if(FIREBASE_OK){
     S.code = makeCode();
-    db.ref(`sessions/${S.code}`).set({created:Date.now()});
+    db.ref(`sessions/${S.code}`).set({created:Date.now(), storyId:S.storyId});
     syncSelf();
     listenOpponent();
     S.screen='lobby';
@@ -650,10 +777,21 @@ function joinCase(){
   const code = document.getElementById('codeInput').value.trim().toUpperCase();
   if(!code){ alert('Enter the 4-letter case code from Player 1.'); return; }
   S.name=name; S.playerSlot=2; S.mode='join'; S.code=code;
-  syncSelf();
-  listenOpponent();
-  S.screen='caseBrief';
-  render();
+  const proceed = ()=>{
+    syncSelf();
+    listenOpponent();
+    S.screen='caseBrief';
+    render();
+  };
+  if(FIREBASE_OK){
+    db.ref(`sessions/${S.code}`).once('value').then(snap=>{
+      const data = snap.val();
+      loadStoryPack(data && data.storyId ? data.storyId : DEFAULT_STORY_ID);
+      proceed();
+    }).catch(()=>{ loadStoryPack(DEFAULT_STORY_ID); proceed(); });
+  } else {
+    proceed();
+  }
 }
 
 function renderLobby(){
@@ -670,28 +808,109 @@ function renderLobby(){
   document.getElementById('beginBtn').onclick=()=>{ S.screen='caseBrief'; render(); };
 }
 
+const WARMUP_POINTS = 10;
+function wrapKeyTerms(text, terms){
+  if(!terms.length) return text;
+  const escaped = terms.map(t=>t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+  const pattern = new RegExp('\\b('+escaped.join('|')+')\\b','gi');
+  return text.replace(pattern, m=>`<span class="hf-word" data-word="${m.toLowerCase()}">${m}</span>`);
+}
+
 function renderCaseBrief(){
   app.appendChild(el(masthead()));
   const panel = el(`
     <div class="panel">
       <h2>📁 Case Brief — Read the File</h2>
       <p>Before the evidence rounds begin, both detectives need to read the full case file. Read it carefully — every round ahead pulls its clues straight from this text.</p>
+      <p class="small">Warm-up: circle the high-frequency words and scoop a sentence or two with your pencil before moving on. Worth ${WARMUP_POINTS} bonus points.</p>
       <div class="key-terms">
         ${KEY_TERMS.map(w=>`<span class="term-chip">${w}</span>`).join('')}
       </div>
-      <div class="case-doc" id="caseDoc">
-        <h2 style="text-align:center; margin-bottom:16px;">Brad's Bad Day</h2>
-        ${STORY_PARAGRAPHS.map(p=>`<p>${p}</p>`).join('')}
+      <div class="mark-toolbar">
+        <button class="tool-btn active" id="toolPencil" data-tool="pencil">✏️ Pencil</button>
+        <button class="tool-btn" id="toolCircle" data-tool="circle">⭕ Tap to Circle</button>
+        <button class="tool-btn" id="toolEraser" data-tool="eraser">🧹 Eraser</button>
+        <button class="btn ghost" id="clearMarksBtn">🗑️ Clear Marks</button>
+      </div>
+      <div class="case-doc-wrap">
+        <div class="case-doc" id="caseDoc">
+          <h2 style="text-align:center; margin-bottom:16px;">${CURRENT_STORY_TITLE}</h2>
+          ${STORY_PARAGRAPHS.map(p=>`<p>${wrapKeyTerms(p, KEY_TERMS)}</p>`).join('')}
+        </div>
+        <canvas id="markCanvas"></canvas>
       </div>
       <div class="center" style="margin-top:10px;">
         <button class="btn ghost" id="readAloudBtn">🔊 Read Case Brief Aloud</button>
       </div>
       <div class="center" style="margin-top:18px;">
-        <button class="btn" id="beginEvidenceBtn">Begin Gathering Evidence →</button>
+        <button class="btn" id="beginEvidenceBtn">Finish Warm-Up &amp; Begin Evidence →</button>
       </div>
     </div>
   `);
   app.appendChild(panel);
+
+  /* --- pencil / circle marking --- */
+  const wrap = panel.querySelector('.case-doc-wrap');
+  const doc = panel.querySelector('#caseDoc');
+  const canvas = panel.querySelector('#markCanvas');
+  const ctx = canvas.getContext('2d');
+  let activeTool = 'pencil';
+
+  function sizeCanvas(){
+    const rect = doc.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.style.width = rect.width+'px';
+    canvas.style.height = rect.height+'px';
+    canvas.width = Math.round(rect.width*dpr);
+    canvas.height = Math.round(rect.height*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  sizeCanvas();
+  window.addEventListener('resize', sizeCanvas);
+
+  panel.querySelectorAll('.tool-btn[data-tool]').forEach(btn=>{
+    btn.onclick=()=>{
+      activeTool = btn.dataset.tool;
+      panel.querySelectorAll('.tool-btn[data-tool]').forEach(b=>b.classList.toggle('active', b===btn));
+      canvas.style.pointerEvents = activeTool==='circle' ? 'none' : 'auto';
+    };
+  });
+
+  let drawing=false, lastX=0, lastY=0;
+  canvas.addEventListener('pointerdown', e=>{
+    drawing=true;
+    canvas.setPointerCapture(e.pointerId);
+    const rect = canvas.getBoundingClientRect();
+    lastX = e.clientX-rect.left; lastY = e.clientY-rect.top;
+  });
+  canvas.addEventListener('pointermove', e=>{
+    if(!drawing) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX-rect.left, y = e.clientY-rect.top;
+    ctx.globalCompositeOperation = activeTool==='eraser' ? 'destination-out' : 'source-over';
+    ctx.strokeStyle = '#a3312a';
+    ctx.lineWidth = activeTool==='eraser' ? 20 : 3;
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath();
+    ctx.moveTo(lastX,lastY);
+    ctx.lineTo(x,y);
+    ctx.stroke();
+    lastX=x; lastY=y;
+  });
+  canvas.addEventListener('pointerup', e=>{ drawing=false; try{canvas.releasePointerCapture(e.pointerId);}catch(err){} });
+
+  doc.querySelectorAll('.hf-word').forEach(span=>{
+    span.addEventListener('click', ()=>{
+      if(activeTool!=='circle') return;
+      span.classList.toggle('circled');
+    });
+  });
+
+  panel.querySelector('#clearMarksBtn').onclick=()=>{
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    doc.querySelectorAll('.hf-word.circled').forEach(s=>s.classList.remove('circled'));
+  };
+
   document.getElementById('readAloudBtn').onclick=()=>{
     if(!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
@@ -699,6 +918,8 @@ function renderCaseBrief(){
   };
   document.getElementById('beginEvidenceBtn').onclick=()=>{
     window.speechSynthesis && window.speechSynthesis.cancel();
+    window.removeEventListener('resize', sizeCanvas);
+    S.score += WARMUP_POINTS;
     S.roundIdx=0; S.qIdx=0;
     S.screen='roundIntro';
     syncSelf();
@@ -744,6 +965,7 @@ function timeBonus(){
 
 function renderMC(r){
   const q = r.questions[S.qIdx];
+  let attempt = 0;
   const panel = el(`
     <div class="panel">
       <h2>${r.icon} ${r.title}</h2>
@@ -753,30 +975,45 @@ function renderMC(r){
       <div class="options">
         ${q.options.map((o,i)=>`<button class="opt-btn" data-i="${i}">${o}</button>`).join('')}
       </div>
+      <p class="tile-hint mc-nudge" style="display:none;"></p>
     </div>
   `);
   app.appendChild(panel);
+  const nudge = panel.querySelector('.mc-nudge');
+
   panel.querySelectorAll('.opt-btn').forEach(btn=>{
     btn.onclick=()=>{
       const i = parseInt(btn.dataset.i);
+      attempt++;
+      const isCorrect = i===q.answer;
+      const isFinal = isCorrect || attempt>=2;
+
+      if(!isFinal){
+        btn.classList.add('eliminated');
+        btn.disabled = true;
+        stamp('wrong');
+        nudge.style.display='block';
+        nudge.textContent = 'Not that one — ruled out. Check the evidence again and pick another.';
+        return;
+      }
+
+      nudge.style.display='none';
       panel.querySelectorAll('.opt-btn').forEach(b=>b.disabled=true);
-      let earned=0, wasCorrect;
-      if(i===q.answer){
+      let earned=0;
+      if(isCorrect){
         btn.classList.add('correct');
         earned = r.points + timeBonus();
         S.score += earned;
         stamp('correct');
-        wasCorrect=true;
       } else {
         btn.classList.add('wrong');
         panel.querySelectorAll('.opt-btn')[q.answer].classList.add('correct');
         stamp('wrong');
-        wasCorrect=false;
       }
       syncSelf();
       const box = el(`
-        <div class="explain-box ${wasCorrect?'ok':'no'}">
-          <div class="explain-title">${wasCorrect?`✅ Evidence confirmed — +${earned} pts`:'🔎 Back to the evidence'}</div>
+        <div class="explain-box ${isCorrect?'ok':'no'}">
+          <div class="explain-title">${isCorrect?`✅ Evidence confirmed — +${earned} pts`:'🔎 Back to the evidence'}</div>
           <div class="explain-body">${q.explain||''}</div>
           <button class="btn" id="continueBtn">Continue Investigation →</button>
         </div>
@@ -788,21 +1025,137 @@ function renderMC(r){
   });
 }
 
-const DIGRAPHS = ['ch','sh','th','wh','ck'];
+/* =========================================================
+   WRS TILE PROGRESSION — Steps 1 through 12
+   Reconstructed from the Wilson Scope & Sequence chart plus direct
+   screenshots of the official digital tile board at each substep
+   (July 2026). Each entry lists the tiles that become newly available
+   at that substep, in teaching order. The set is cumulative — a
+   student at substep X has access to every tile introduced at or
+   before X, and nothing introduced after it.
+
+   Where the printed scope chart and the actual tile-board screenshots
+   disagreed on exact unlock substep (this happened for a handful of
+   patterns — schwa/y, and the igh/eigh vs ie/ei ordering), the
+   screenshot was treated as ground truth since it reflects the real
+   product behavior a student would see.
+
+   'consonant' = pale yellow tile (consonants, blends, digraphs, trigraphs)
+   'vowel'     = tan/pink tile (single vowels, vowel teams, r-controlled, schwa)
+   'welded'    = green tile (welded sounds, closed-syllable exceptions,
+                 advanced suffix chunks like -tion/-ture/-cious)
+   This list only tracks tiles that appear as physical letter tiles on
+   the board — general suffixes reached via the "Suffixes" dropdown
+   (er, est, ing, ed, ly, ness, etc.) aren't included since they're not
+   drag-able board tiles.
+--------------------------------------------------------- */
+const WRS_PROGRESSION = [
+  { substep:'1.1', add:[
+    ['f','consonant'],['l','consonant'],['m','consonant'],['n','consonant'],['r','consonant'],
+    ['s','consonant'],['d','consonant'],['g','consonant'],['p','consonant'],['t','consonant'],
+    ['a','vowel'],['i','vowel'],['o','vowel'],
+  ]},
+  { substep:'1.2', add:[
+    ['b','consonant'],['h','consonant'],['j','consonant'],['c','consonant'],['k','consonant'],
+    ['v','consonant'],['w','consonant'],['x','consonant'],['y','consonant'],['z','consonant'],
+    ['sh','consonant'],['ch','consonant'],['th','consonant'],['ck','consonant'],['qu','consonant'],['wh','consonant'],
+    ['u','vowel'],['e','vowel'],
+  ]},
+  { substep:'1.4', add:[ ['all','welded'] ]},
+  { substep:'1.5', add:[ ['am','welded'],['an','welded'] ]},
+  { substep:'2.1', add:[
+    ['ang','welded'],['ank','welded'],['ing','welded'],['ink','welded'],
+    ['ong','welded'],['onk','welded'],['ung','welded'],['unk','welded'],
+  ]},
+  { substep:'2.3', add:[ ['ild','welded'],['ind','welded'],['old','welded'],['olt','welded'],['ost','welded'] ]},
+  { substep:'3.1', add:[ ['y','vowel'],['ə','vowel'] ]}, // schwa + y-as-vowel, per tile-board screenshot
+  { substep:'4.4', add:[ ['ive','welded'] ]},
+  { substep:'6.4', add:[ ['stle','welded'] ]},
+  { substep:'7.2', add:[ ['dge','consonant'] ]},
+  { substep:'7.3', add:[ ['ph','consonant'],['tch','consonant'] ]},
+  { substep:'7.4', add:[ ['tion','welded'],['sion','welded'] ]},
+  { substep:'8.1', add:[ ['ar','vowel'],['er','vowel'],['ir','vowel'],['or','vowel'],['ur','vowel'] ]},
+  { substep:'9.1', add:[ ['ai','vowel'],['ay','vowel'] ]},
+  { substep:'9.2', add:[ ['ee','vowel'],['ey','vowel'] ]},
+  { substep:'9.3', add:[ ['oa','vowel'],['oe','vowel'],['ue','vowel'] ]},
+  { substep:'9.4', add:[ ['oi','vowel'],['oy','vowel'],['au','vowel'],['aw','vowel'] ]},
+  { substep:'9.5', add:[ ['ou','vowel'],['ow','vowel'],['oo','vowel'] ]},
+  { substep:'9.6', add:[ ['ea','vowel'] ]},
+  { substep:'9.7', add:[ ['eu','vowel'],['ew','vowel'],['ui','vowel'] ]},
+  { substep:'11.3', add:[ ['igh','vowel'],['eigh','vowel'] ]},
+  { substep:'11.4', add:[ ['ie','vowel'],['ei','vowel'] ]},
+  { substep:'12.5', add:[
+    ['gh','consonant'],['gn','consonant'],['kn','consonant'],['rh','consonant'],
+    ['wr','consonant'],['mb','consonant'],['mn','consonant'],['que','consonant'],
+    ['sure','welded'],['ture','welded'],['tious','welded'],['cious','welded'],
+    ['tial','welded'],['cial','welded'],['tient','welded'],['cient','welded'],
+    ['cian','welded'],['tu','welded'],
+  ]},
+];
+
+function substepValue(s){
+  // "2.4B" -> 2.4  (trailing A/B lesson-part letters don't change unlock tier)
+  return parseFloat(String(s).replace(/[A-Za-z]+$/,''));
+}
+function unlockedTilesForSubstep(substep){
+  const target = substepValue(substep);
+  const map = new Map();
+  WRS_PROGRESSION.forEach(tier=>{
+    if(substepValue(tier.substep) <= target){
+      tier.add.forEach(([pattern,color])=> map.set(pattern, color));
+    }
+  });
+  return map;
+}
+
 function chunkWord(word){
+  // Chunk using every multi-letter pattern in the full WRS progression
+  // (digraphs, trigraphs, welded sounds, vowel teams, suffix chunks),
+  // longest match first, so any story's spelling words chunk correctly
+  // regardless of which step they come from.
+  //
+  // Welded sounds like am/an/all stay welded wherever they appear once
+  // taught — e.g. "branch" chunks as br-an-ch, not b-r-a-n-ch.
+  const allPatterns = new Set();
+  WRS_PROGRESSION.forEach(tier=> tier.add.forEach(([p])=>{ if(p.length>1) allPatterns.add(p); }));
+  const byLength = Array.from(allPatterns).sort((a,b)=>b.length-a.length);
   const chunks = [];
   let i=0;
   while(i<word.length){
-    const two = word.slice(i,i+2);
-    if(DIGRAPHS.includes(two)){ chunks.push(two); i+=2; }
+    const match = byLength.find(p => word.slice(i, i+p.length)===p);
+    if(match){ chunks.push(match); i+=match.length; }
     else { chunks.push(word[i]); i+=1; }
   }
   return chunks;
 }
+
+/* WRS tile color: looks up the pattern's official color from the
+   progression table; falls back to the vowel/consonant heuristic for
+   any single letter not explicitly listed (safety net only). */
+const WRS_VOWELS = ['a','e','i','o','u'];
+function wrsTileColorClass(chunkLetters, substep){
+  const unlocked = substep ? unlockedTilesForSubstep(substep) : null;
+  if(unlocked && unlocked.has(chunkLetters)){
+    const color = unlocked.get(chunkLetters);
+    return color==='vowel' ? 'tile-vowel' : (color==='welded' ? 'tile-welded' : 'tile-consonant');
+  }
+  return (chunkLetters.length===1 && WRS_VOWELS.includes(chunkLetters)) ? 'tile-vowel' : 'tile-consonant';
+}
+
+/* Decoy tiles are drawn only from patterns the student has actually
+   been taught by this story's substep — never a pattern from a later
+   step, even as a wrong answer. Falls back to a basic Step-1/2 pool
+   if no substep is given (keeps older story packs working unchanged). */
 const DECOY_POOL = ['b','p','t','d','k','g','m','n','r','l','s','f','v','j','a','e','i','o','u','ch','sh','th','wh','ck'];
-function pickDecoys(correctChunks, count){
+function pickDecoys(correctChunks, count, substep){
   const avoid = new Set(correctChunks.map(c=>c.toLowerCase()));
-  const pool = DECOY_POOL.filter(c=>!avoid.has(c)).sort(()=>Math.random()-0.5);
+  let pool;
+  if(substep){
+    pool = Array.from(unlockedTilesForSubstep(substep).keys()).filter(p=>!avoid.has(p));
+  } else {
+    pool = DECOY_POOL.filter(c=>!avoid.has(c));
+  }
+  pool = pool.sort(()=>Math.random()-0.5);
   return pool.slice(0, count);
 }
 
@@ -810,10 +1163,12 @@ function renderSpell(r){
   const q = r.questions[S.qIdx];
   const correctChunks = chunkWord(q.word.toLowerCase());
   const correctTiles = correctChunks.map((ch,i)=>({id:'c'+i, letter:ch, correctIndex:i}));
-  const decoyTiles = pickDecoys(correctChunks, 3).map((ch,i)=>({id:'d'+i, letter:ch, correctIndex:-1}));
+  const decoyTiles = pickDecoys(correctChunks, 3, CURRENT_STORY_SUBSTEP).map((ch,i)=>({id:'d'+i, letter:ch, correctIndex:-1}));
   const allTiles = correctTiles.concat(decoyTiles);
   let trayTiles = shuffleTileLetters(allTiles);
   let slots = new Array(correctChunks.length).fill(null);
+  let spellAttempt = 0;
+  let lockedSlots = new Set();
   let step = 'listen'; // 'listen' -> 'tap' -> 'spell'
 
   const panel = el(`<div class="panel"></div>`);
@@ -881,7 +1236,8 @@ function renderSpell(r){
       tapRow.innerHTML='';
       correctChunks.forEach((c,i)=>{
         const dot = document.createElement('button');
-        dot.className = 'tap-dot' + (i<tapped?' tapped':'') + (c.length>1?' tap-dot-multi':'');
+        const colorClass = i<tapped ? '' : ' tap-'+wrsTileColorClass(c, CURRENT_STORY_SUBSTEP);
+        dot.className = 'tap-dot' + (i<tapped?' tapped':'') + (c.length>1?' tap-dot-multi':'') + colorClass;
         dot.textContent = (i<tapped) ? c : (i+1);
         dot.onclick = ()=>{
           if(i===tapped){
@@ -936,10 +1292,11 @@ function renderSpell(r){
       slots[slotIndex]=null;
       trayTiles.push(tileById(tid));
     }
-    function makeTileEl(t, location, slotIndex){
+    function makeTileEl(t, location, slotIndex, locked){
       const d = document.createElement('div');
-      d.className='tile' + (t.letter.length>1?' tile-multi':'');
+      d.className='tile' + (t.letter.length>1?' tile-multi':'') + ' ' + wrsTileColorClass(t.letter, CURRENT_STORY_SUBSTEP) + (locked?' tile-locked':'');
       d.textContent = t.letter;
+      if(locked) return d;
       let startX,startY,dragging=false,moved=false,offX=0,offY=0;
       d.addEventListener('pointerdown', e=>{
         e.preventDefault();
@@ -976,7 +1333,7 @@ function renderSpell(r){
         const dropEl = document.elementFromPoint(e.clientX, e.clientY);
         const targetSlot = dropEl && dropEl.closest('.tile-slot');
         const targetTray = dropEl && dropEl.closest('.tile-tray');
-        if(targetSlot){
+        if(targetSlot && !targetSlot.classList.contains('locked')){
           const targetIdx = parseInt(targetSlot.dataset.slotIndex);
           if(location==='tray'){
             const occId = slots[targetIdx];
@@ -998,44 +1355,80 @@ function renderSpell(r){
     function draw(){
       slotsEl.innerHTML='';
       slots.forEach((tid,i)=>{
+        const isLocked = lockedSlots.has(i);
         const box = document.createElement('div');
-        box.className = 'tile-slot' + (tid?' filled':'');
+        box.className = 'tile-slot' + (tid?' filled':'') + (isLocked?' locked':'');
         box.dataset.slotIndex=i;
-        if(tid) box.appendChild(makeTileEl(tileById(tid),'slot',i));
+        if(tid) box.appendChild(makeTileEl(tileById(tid),'slot',i,isLocked));
         slotsEl.appendChild(box);
       });
       trayEl.innerHTML='';
-      trayTiles.forEach(t=> trayEl.appendChild(makeTileEl(t,'tray',null)));
+      trayTiles.forEach(t=> trayEl.appendChild(makeTileEl(t,'tray',null,false)));
       submitBtn.disabled = !slots.every(s=>s!==null);
     }
     draw();
 
     panel.querySelector('#resetTilesBtn').onclick=()=>{
-      slots = new Array(correctChunks.length).fill(null);
-      trayTiles = shuffleTileLetters(allTiles);
+      const lockedTileIds = new Set();
+      slots.forEach((tid,i)=>{ if(tid && lockedSlots.has(i)) lockedTileIds.add(tid); });
+      const freeTiles = allTiles.filter(t=>!lockedTileIds.has(t.id));
+      slots = slots.map((tid,i)=> lockedSlots.has(i) ? tid : null);
+      trayTiles = shuffleTileLetters(freeTiles);
       draw();
     };
     submitBtn.onclick=()=>{
+      spellAttempt++;
       const val = slots.map(id=>tileById(id).letter).join('').toLowerCase();
+      const wasCorrect = val===q.word.toLowerCase();
+      const isFinal = wasCorrect || spellAttempt>=2;
+
+      if(!isFinal){
+        stamp('wrong');
+        lockedSlots = new Set();
+        slots.forEach((tid,i)=>{ if(tid && tileById(tid).correctIndex===i) lockedSlots.add(i); });
+        slots.forEach((tid,i)=>{
+          if(tid && !lockedSlots.has(i)){ trayTiles.push(tileById(tid)); slots[i]=null; }
+        });
+        submitBtn.disabled=true;
+        panel.querySelector('#resetTilesBtn').disabled=true;
+        const box = el(`
+          <div class="explain-box no">
+            <div class="explain-title">🔎 Not quite yet</div>
+            <div class="explain-body">Locked letters (🔒) are already correct — fix the rest, then file the evidence again.</div>
+            <div class="center" style="margin-top:10px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+              <button class="btn ghost" id="hearRetryBtn">🔊 Hear the word again</button>
+              <button class="btn" id="spellRetryBtn">🔄 Try Again</button>
+            </div>
+          </div>
+        `);
+        panel.appendChild(box);
+        box.scrollIntoView({behavior:'smooth', block:'nearest'});
+        document.getElementById('hearRetryBtn').onclick = playWordSequence;
+        document.getElementById('spellRetryBtn').onclick=()=>{
+          box.remove();
+          draw();
+          panel.querySelector('#resetTilesBtn').disabled=false;
+        };
+        return;
+      }
+
       submitBtn.disabled=true;
       panel.querySelector('#resetTilesBtn').disabled=true;
       slotsEl.querySelectorAll('.tile').forEach(t=>t.style.pointerEvents='none');
       trayEl.querySelectorAll('.tile').forEach(t=>t.style.pointerEvents='none');
-      let earned=0, wasCorrect;
-      if(val===q.word.toLowerCase()){
+      let earned=0;
+      if(wasCorrect){
         earned = r.points + timeBonus();
         S.score += earned;
         stamp('correct');
-        wasCorrect=true;
       } else {
         stamp('wrong');
-        wasCorrect=false;
       }
       syncSelf();
       const box = el(`
         <div class="explain-box ${wasCorrect?'ok':'no'}">
           <div class="explain-title">${wasCorrect?`✅ Evidence filed — +${earned} pts`:'🔎 Back to the evidence'}</div>
-          <div class="explain-body">${wasCorrect?`Correctly spelled: <b>${q.word}</b>`:`You spelled "${val||'(blank)'}." The correct spelling is <b>${q.word}</b> — found in: "${q.sentence}"`}</div>
+          <div class="explain-body">${wasCorrect?`Correctly spelled: <b>${q.word}</b>`:`The correct spelling is <b>${q.word}</b> — found in: "${q.sentence}"`}</div>
           <button class="btn" id="continueBtn">Continue Investigation →</button>
         </div>
       `);
@@ -1096,28 +1489,32 @@ function renderSequence(r){
       <p class="small">Timeline ${S.seqSetIdx+1} of ${r.sets.length}</p>
       <div class="question-prompt">${set.label}</div>
       <ul class="seq-list" id="seqList"></ul>
-      <p class="tile-hint">Drag a card to reorder it, or tap two cards to swap them.</p>
+      <p class="tile-hint" id="seqHint">Drag a card to reorder it, or tap two cards to swap them.</p>
       <div class="center"><button class="btn" id="lockBtn">Lock In Timeline</button></div>
     </div>
   `);
   app.appendChild(panel);
   const list = panel.querySelector('#seqList');
+  const hint = panel.querySelector('#seqHint');
   let selectedIdx = null;
+  let lockedPositions = new Set();
 
   function drawList(){
     list.innerHTML='';
     selectedIdx = null;
     S.seqOrder.forEach((item,idx)=>{
+      const isLocked = lockedPositions.has(idx);
       const li = document.createElement('li');
-      li.className='seq-item';
+      li.className='seq-item' + (isLocked?' locked':'');
       li.dataset.idx=idx;
-      li.innerHTML = `<span class="num">${idx+1}</span><span>${item.text}</span>`;
-      attachItemInteraction(li, idx);
+      li.innerHTML = `<span class="num">${idx+1}</span><span>${item.text}</span>` + (isLocked?' <span class="lock-icon">🔒</span>':'');
+      if(!isLocked) attachItemInteraction(li, idx);
       list.appendChild(li);
     });
   }
 
   function handleTap(idx){
+    if(lockedPositions.has(idx)) return;
     if(selectedIdx===null){
       selectedIdx = idx;
     } else if(selectedIdx===idx){
@@ -1169,7 +1566,7 @@ function renderSequence(r){
       li.style.left=''; li.style.top=''; li.style.width='';
       const dropEl = document.elementFromPoint(e.clientX, e.clientY);
       const target = dropEl && dropEl.closest('.seq-item');
-      if(target && target!==li){
+      if(target && target!==li && !target.classList.contains('locked')){
         const targetIdx = parseInt(target.dataset.idx);
         const moved_ = S.seqOrder.splice(idx,1)[0];
         S.seqOrder.splice(targetIdx,0,moved_);
@@ -1179,15 +1576,49 @@ function renderSequence(r){
   }
 
   drawList();
-  panel.querySelector('#lockBtn').onclick=()=>{
+  let attemptCount = 0;
+  const lockBtn = panel.querySelector('#lockBtn');
+  lockBtn.onclick=()=>{
+    attemptCount++;
     let correctCount=0;
     S.seqOrder.forEach((item,idx)=>{ if(item.correctPos===idx) correctCount++; });
+    const allCorrect = correctCount===set.events.length;
+    const isFinal = allCorrect || attemptCount>=2;
+
+    if(!isFinal){
+      stamp('wrong');
+      lockBtn.disabled=true;
+      const box = el(`
+        <div class="explain-box no">
+          <div class="explain-title">🔎 ${correctCount} of ${set.events.length} in the right spot</div>
+          <div class="explain-body">Not quite yet. Reread the case brief to check the order, then rearrange the cards and lock it in again. Cards you already got right will stay locked in place.</div>
+          <div class="center" style="margin-top:10px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+            <button class="btn ghost" id="rereadBtn">📖 Reread the Story</button>
+            <button class="btn" id="retryBtn">🔄 Rearrange &amp; Resubmit</button>
+          </div>
+        </div>
+      `);
+      panel.appendChild(box);
+      box.scrollIntoView({behavior:'smooth', block:'nearest'});
+      document.getElementById('rereadBtn').onclick=()=> openStoryModal();
+      document.getElementById('retryBtn').onclick=()=>{
+        box.remove();
+        lockedPositions = new Set();
+        S.seqOrder.forEach((item,idx)=>{ if(item.correctPos===idx) lockedPositions.add(idx); });
+        if(hint) hint.textContent = lockedPositions.size
+          ? 'Locked cards (🔒) were already correct. Fix the rest — drag or tap to swap.'
+          : 'Drag a card to reorder it, or tap two cards to swap them.';
+        drawList();
+        lockBtn.disabled=false;
+      };
+      return;
+    }
+
     const earned = correctCount * r.points;
     S.score += earned;
-    const allCorrect = correctCount===set.events.length;
     if(allCorrect) stamp('correct'); else stamp('wrong');
     syncSelf();
-    panel.querySelector('#lockBtn').disabled=true;
+    lockBtn.disabled=true;
     const correctList = set.events.map((e,idx)=>`<li class="seq-item"><span class="num">${idx+1}</span><span>${e}</span></li>`).join('');
     const box = el(`
       <div class="explain-box ${allCorrect?'ok':'no'}">
