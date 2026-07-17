@@ -343,6 +343,33 @@ function hasCustomPin(){
   return !!localStorage.getItem('brads_bad_day_teacher_pin');
 }
 
+/* ---------------- TEACHER PROFILE (per-device identity for separated assignments) ----------------
+   Each teacher's device gets its own teacherId, generated once and stored locally. Solo
+   assignments are tagged with this id so a teacher's "My Assignments" list in Teacher Tools
+   only ever shows what THEY created — even though everyone shares one Firebase project. */
+function getTeacherId(){
+  return localStorage.getItem('brads_bad_day_teacher_id') || '';
+}
+function getTeacherName(){
+  return localStorage.getItem('brads_bad_day_teacher_name') || '';
+}
+function setTeacherProfile(name){
+  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || 'teacher';
+  const id = slug + '-' + Math.random().toString(36).slice(2,6);
+  localStorage.setItem('brads_bad_day_teacher_name', name.trim());
+  localStorage.setItem('brads_bad_day_teacher_id', id);
+  return id;
+}
+function renameTeacherDisplayName(name){
+  // Keeps the same teacherId (so past assignments stay attached) — just updates the label.
+  localStorage.setItem('brads_bad_day_teacher_name', name.trim());
+}
+function ensureTeacherProfile(){
+  if(getTeacherId()) return getTeacherId();
+  const name = prompt('One-time setup: whose name should your assignments be saved under? (e.g. your name or initials)');
+  return setTeacherProfile(name && name.trim() ? name.trim() : 'Teacher');
+}
+
 /* ---------------- VOICE SELECTION (text-to-speech) ---------------- */
 function getSelectedVoiceURI(){
   return localStorage.getItem('brads_bad_day_voice_uri') || '';
@@ -1232,6 +1259,1411 @@ const ROUNDS_MOVE_TO_STATES = [
     ]},
 ];
 
+/* =========================================================
+   STORY 7: THE BEST LUNCH — WRS Substep 3.1 AB
+   ========================================================= */
+const KEY_TERMS_BEST_LUNCH = ['month','number','first','full','hard','says'];
+const STORY_PARAGRAPHS_BEST_LUNCH = [
+  `Mom is hard at work with the bills for the month. She has to check each number and add everything up. Dad and Ellen think that Mom should stop and rest for a bit.`,
+  `"Mom should not miss lunch. We cannot let that happen!" says Dad. "First, I will put the dishes out so we can have shrimp salad. Then, I will grab the can of shellfish from the top shelf and mix the shrimp into a salad."`,
+  `"I want to help," says Ellen, "I will put out some napkins and glasses and I can also get the basket for the plum muffins."`,
+  `Ellen and her dad chitchat as they fix a very big lunch. When they finish and everything is set, they call Mom to come sit with them. When Mom comes in, she says, "What in the world have you two been up to?"`,
+  `Ellen, Mom, and Dad have the shrimp salad with plum muffins and some cold milk. "This is the best lunch yet and now I am full," says Mom, "Thanks for everything!"`,
+];
+const ROUNDS_BEST_LUNCH = [
+  { id:'sequence', tab:'Timeline', title:"Case File 1 — Timeline Reconstruction", icon:'🗺️',
+    intro:"Drag the evidence into the correct order to rebuild the lunch surprise.",
+    type:'sequence', points:5,
+    sets:[
+      { label:'First half — put these in order', events:[
+          "Mom is hard at work with the bills for the month.",
+          "Dad and Ellen think Mom should stop and rest.",
+          "Dad says he will make shrimp salad.",
+          "Ellen says she will get napkins and the muffin basket.",
+      ]},
+      { label:'Second half — put these in order', events:[
+          "Ellen and her dad chitchat as they fix lunch.",
+          "They call Mom to come sit with them.",
+          "Mom asks what they have been up to.",
+          "Ellen, Mom, and Dad enjoy the shrimp salad and muffins together.",
+      ]},
+    ]},
+  { id:'inference', tab:'Inference', title:"Case File 2 — Detective Inference", icon:'🧠',
+    intro:"Read between the lines to solve these.",
+    type:'mc', points:12,
+    questions:[
+      {context:`"Dad and Ellen think that Mom should stop and rest for a bit."`, prompt:'Why do Dad and Ellen think Mom should stop and rest?',
+        options:['She has been working hard on bills and needs a break','She is sick','She wants to go shopping','She asked them to leave'], answer:0,
+        explain:'This line comes right after describing Mom being "hard at work with the bills" — that\'s why they think she needs a break.'},
+      {context:`""Mom should not miss lunch. We cannot let that happen!" says Dad."`, prompt:'Why does Dad say this?',
+        options:['He is annoyed with Mom','He cares about Mom and wants to make sure she eats','He is hungry himself','He wants Mom to cook'], answer:1,
+        explain:'Dad\'s strong reaction ("We cannot let that happen!") shows he genuinely cares about Mom taking care of herself.'},
+      {context:`"First, I will put the dishes out... grab the can of shellfish... mix the shrimp into a salad."`, prompt:'What does Dad\'s detailed plan tell you about him?',
+        options:['He is confused about what to do','He is taking charge of making a nice meal for Mom','He doesn\'t want to cook','He is copying a recipe from Mom'], answer:1,
+        explain:'His step-by-step plan shows he is confidently taking the lead on preparing a special lunch.'},
+      {context:`""I want to help," says Ellen`, prompt:'Why does Ellen want to help too?',
+        options:['She was told to','She cares about Mom and wants to be part of the surprise','She wants credit for the meal','She doesn\'t trust Dad to cook alone'], answer:1,
+        explain:'Ellen volunteering on her own ("I want to help") shows she cares and wants to contribute to the surprise for Mom.'},
+      {context:`"Ellen and her dad chitchat as they fix a very big lunch."`, prompt:'What can you infer from this line?',
+        options:['They argued while cooking','They enjoyed working together and had fun','They rushed through the cooking','They didn\'t speak at all'], answer:1,
+        explain:'"Chitchat" is friendly, relaxed talk — showing they enjoyed the process of cooking together.'},
+      {context:`"What in the world have you two been up to?"`, prompt:'Why does Mom ask this question?',
+        options:['She is angry','She is surprised and curious about what they\'ve been doing','She already knows the answer','She wants to leave the room'], answer:1,
+        explain:'This phrase expresses surprise — Mom doesn\'t know what Dad and Ellen have secretly been preparing.'},
+      {context:'Think about the whole story.', prompt:'What was Ellen and Dad\'s plan really about?',
+        options:['Getting out of chores','Surprising Mom with a nice lunch so she\'d take a break','Testing a new recipe','Making Mom do more work'], answer:1,
+        explain:'Every step of their plan — from the shrimp salad to calling Mom to sit — was aimed at giving Mom a nice break with lunch.'},
+      {context:'"This is the best lunch yet and now I am full," says Mom, "Thanks for everything!"', prompt:'How does Mom feel about the lunch at the end?',
+        options:['Disappointed','Happy and grateful','Confused','Still hungry'], answer:1,
+        explain:'Calling it "the best lunch yet" and thanking them directly shows Mom is happy and grateful.'},
+      {context:'Think about the whole story.', prompt:'What is the theme of this story?',
+        options:['Cooking is difficult','Showing care for a family member through thoughtful preparation','Bills are stressful','Lunch is the most important meal'], answer:1,
+        explain:'Dad and Ellen show their care for Mom by preparing a surprise lunch so she can take a needed break.'},
+      {context:'"Thanks for everything!"', prompt:'Why might the author end with Mom saying "Thanks for everything!"?',
+        options:['To show she is still upset','To show her appreciation for their surprise and effort','To ask for more food','To end the story abruptly'], answer:1,
+        explain:'This closing line wraps up the story on a warm note of gratitude for the surprise lunch.'},
+    ]},
+  { id:'vocab', tab:'Vocab', title:"Case File 3 — Vocabulary Clues", icon:'🔍',
+    intro:"Every good detective reads for clues hidden in context. Figure out what each word means the way it's used in the story.",
+    type:'mc', points:10,
+    questions:[
+      {context:`"Mom is hard at work with the bills for the month."`, prompt:'What does hard at work mean here?',
+        options:['Working with a lot of effort and focus','Playing a game','Resting comfortably','Sleeping'], answer:0,
+        explain:'Being "hard at work" describes putting real effort and focus into a task — here, checking bills.'},
+      {context:`"Mom is hard at work with the bills for the month."`, prompt:'What does bills mean here?',
+        options:['Papers showing money owed, like for electricity or phone','Birthday cards','A grocery list','Books to read'], answer:0,
+        explain:'Bills are the papers showing what money is owed each month, which Mom is checking and adding up.'},
+      {context:`"Ellen and her dad chitchat as they fix a very big lunch."`, prompt:'What does chitchat mean here?',
+        options:['Casual, friendly talk','A serious argument','Complete silence','Loud shouting'], answer:0,
+        explain:'Chitchat is light, friendly conversation — fitting for Dad and Ellen enjoying their time cooking together.'},
+      {context:`"grab the can of shellfish from the top shelf"`, prompt:'What does shellfish mean here?',
+        options:['Sea creatures with shells, like shrimp or crab','A type of bread','A vegetable','A fruit'], answer:0,
+        explain:'Shellfish are sea creatures with shells — fitting since Dad uses it to make shrimp salad.'},
+      {context:`"I will put out some napkins and glasses"`, prompt:'What does napkins mean here?',
+        options:['Cloths or paper used to wipe hands and mouth at meals','Plates','Forks','Chairs'], answer:0,
+        explain:'Napkins are set out with glasses at a meal, used to wipe hands or mouths while eating.'},
+      {context:`"I can also get the basket for the plum muffins"`, prompt:'What does basket mean here?',
+        options:['A container, often made of woven material','A type of oven','A drawer','A shelf'], answer:0,
+        explain:'A basket is a container used to hold and carry the muffins to the table.'},
+      {context:`"What in the world have you two been up to?"`, prompt:'What does this phrase mean here?',
+        options:['An expression of surprise, asking what someone has been doing','A request for directions','A math question','A greeting'], answer:0,
+        explain:'This is a common expression of surprise used when someone doesn\'t know what\'s been going on.'},
+      {context:`"now I am full," says Mom`, prompt:'What does full mean here?',
+        options:['Having eaten enough, not hungry anymore','Very hungry','Tired','Thirsty'], answer:0,
+        explain:'Being "full" after eating means Mom has had enough food and isn\'t hungry anymore.'},
+      {context:`"She has to check each number and add everything up."`, prompt:'What does add up mean here?',
+        options:['Find the total by combining numbers','Subtract numbers','Guess a number','Ignore numbers'], answer:0,
+        explain:'Adding up numbers means combining them to find a total — what Mom is doing with the bills.'},
+      {context:`"This is the best lunch yet"`, prompt:'What does best mean here?',
+        options:['Better than all others so far','The worst','An average one','A normal one'], answer:0,
+        explain:'"Best... yet" means this lunch is better than any other lunch Mom has had up to this point.'},
+    ]},
+  { id:'spelling', tab:'Spelling', title:"Case File 4 — Spelling Forensics", icon:'✏️',
+    intro:"A detective's notes have to be exact. Listen to each word and spell it correctly to file it as evidence.",
+    type:'spell', points:15,
+    questions:[
+      {word:'number', sentence:'She has to check each number.'},
+      {word:'napkins', sentence:'I will put out some napkins and glasses.'},
+      {word:'muffins', sentence:'I can get the basket for the plum muffins.'},
+      {word:'shellfish', sentence:'I will grab the can of shellfish from the shelf.'},
+      {word:'chitchat', sentence:'Ellen and her dad chitchat as they fix lunch.'},
+      {word:'basket', sentence:'Ellen gets the basket for the muffins.'},
+      {word:'happen', sentence:'We cannot let that happen.'},
+      {word:'cannot', sentence:'Mom cannot miss lunch.'},
+      {word:'plum', sentence:'Ellen gets the basket for the plum muffins.'},
+      {word:'shrimp', sentence:'They will have shrimp salad.'},
+      {word:'salad', sentence:'Dad will mix the shrimp into a salad.'},
+      {word:'lunch', sentence:'This is the best lunch yet.'},
+    ]},
+  { id:'structure', tab:'Structure', title:"Case File 5 — Structure Analysis", icon:'🧩',
+    intro:"This story is full of two-syllable words. Mark the syllables and digraphs to crack the code.",
+    type:'mc', points:10,
+    questions:[
+      {context:'shellfish', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Shellfish breaks into two syllable chunks: shell-fish.'},
+      {context:'chitchat', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Chitchat breaks into two syllable chunks: chit-chat.'},
+      {context:'napkins', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Napkins breaks into two syllable chunks: nap-kins.'},
+      {context:'muffins', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Muffins breaks into two syllable chunks: muf-fins.'},
+      {context:'basket', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Basket breaks into two syllable chunks: bas-ket.'},
+      {context:'shellfish', prompt:'Which letters form the beginning digraph?', options:['sh','el','fi','sh'], answer:0,
+        explain:'S and h together make one new sound, /sh/, at the start of shellfish.'},
+      {context:'shellfish', prompt:'Which letters form the ending digraph?', options:['sh','el','fi','sh'], answer:3,
+        explain:'S and h together make one new sound, /sh/, at the end of shellfish too.'},
+      {context:'chitchat', prompt:'Which letters form a digraph twice in this word?', options:['ch','it','ch','at'], answer:0,
+        explain:'C and h together make /ch/, and this word has that digraph both at the start and in the middle.'},
+      {context:'shrimp', prompt:'Which letters form the beginning 3-letter blend?', options:['shr','hri','rim','imp'], answer:0,
+        explain:'The digraph /sh/ blends with /r/ to form the 3-letter blend at the start of shrimp.'},
+      {context:'lunch', prompt:'Which letters form the ending digraph?', options:['lu','un','nc','ch'], answer:3,
+        explain:'C and h together make one new sound, /ch/, at the end of lunch.'},
+    ]},
+];
+
+/* =========================================================
+   STORY 8: SNACK OR SCRIPT? — WRS Substep 3.1 B
+   ========================================================= */
+const KEY_TERMS_SNACK_OR_SCRIPT = ['month','number','push','first','meet','p.m.','day','down','save','make','new'];
+const STORY_PARAGRAPHS_SNACK_OR_SCRIPT = [
+  `Dennis went to go meet Meg on campus at seven p.m. He had asked Meg to get some hummus, chips, and a cold drink at the snack shop. When Dennis got to Meg's hall, she was candid with him and told him that she had to finish her work on a script. Meg said that she had to submit the text in class on the last day of the month. That was the very next day! She still had a lot of work to do and a number of things left to publish the script.`,
+  `Meg then had a fit, "How did this happen? Why did I push this off?"`,
+  `Dennis told Meg not to fret and that he could help. He did not want to witness her panic about this. Plus, he should hold off on the snacks for now.`,
+  `First, Dennis would set up an index, then he had to jot down edits for the text. Next, Meg and Dennis had to save everything on her laptop. At last, the script was all set, but by then it was ten p.m. So, the two pals did not go out for a snack in the end, but Meg did have some lemon drops for them. They sat to rest and make new plans to visit the snack shop.`,
+];
+const ROUNDS_SNACK_OR_SCRIPT = [
+  { id:'sequence', tab:'Timeline', title:"Case File 1 — Timeline Reconstruction", icon:'🗺️',
+    intro:"Drag the evidence into the correct order to rebuild Dennis and Meg's evening.",
+    type:'sequence', points:5,
+    sets:[
+      { label:'First half — put these in order', events:[
+          "Dennis goes to meet Meg on campus at seven p.m.",
+          "Meg tells Dennis she still has to finish her script.",
+          "Meg realizes the script is due the very next day.",
+          "Meg panics and asks why she pushed off the work.",
+      ]},
+      { label:'Second half — put these in order', events:[
+          "Dennis tells Meg not to fret and offers to help.",
+          "Dennis sets up an index and jots down edits.",
+          "Meg and Dennis save everything on her laptop.",
+          "They finish the script but it's too late to go out for a snack.",
+      ]},
+    ]},
+  { id:'inference', tab:'Inference', title:"Case File 2 — Detective Inference", icon:'🧠',
+    intro:"Read between the lines to solve these.",
+    type:'mc', points:12,
+    questions:[
+      {context:`"He had asked Meg to get some hummus, chips, and a cold drink at the snack shop."`, prompt:'Why did Dennis ask Meg to get snacks at the snack shop?',
+        options:['He was testing her memory','He was planning for them to hang out and eat snacks together','He wanted her to work instead','He forgot he already had snacks'], answer:1,
+        explain:'Asking her to pick up snacks shows Dennis was planning a relaxed evening together, before the script emergency came up.'},
+      {context:`"she was candid with him and told him that she had to finish her work on a script"`, prompt:'What does Meg being "candid" with Dennis suggest about their friendship?',
+        options:['They barely know each other','They are close enough that she can be honest about her problem','She was trying to trick him','She didn\'t want to see him'], answer:1,
+        explain:'Being candid means being open and honest — a sign of a comfortable, trusting friendship.'},
+      {context:`Meg then had a fit, "How did this happen?"`, prompt:'Why did Meg have a "fit" when she realized the deadline?',
+        options:['She was excited','She was shocked and upset that the deadline was so close','She was bored','She wanted attention'], answer:1,
+        explain:'A "fit" here means a sudden burst of strong emotion — Meg is shocked and upset by how close the deadline actually is.'},
+      {context:'"Why did I push this off?"', prompt:'What can you infer from this question?',
+        options:['Meg is proud of her planning','Meg regrets procrastinating on her work','Meg wants to blame Dennis','Meg finished early'], answer:1,
+        explain:'Asking herself why she "pushed this off" (delayed it) shows she regrets not starting the work sooner.'},
+      {context:`"Plus, he should hold off on the snacks for now."`, prompt:'Why did Dennis say this?',
+        options:['He wasn\'t hungry','He realized helping Meg was more urgent than getting snacks','He didn\'t like the snacks','Meg told him to stop'], answer:1,
+        explain:'Dennis shifting his priority away from snacks shows he recognized Meg\'s deadline was the more urgent problem.'},
+      {context:`"Dennis told Meg not to fret and that he could help."`, prompt:'What can you infer about Dennis\'s character from how he responds to Meg\'s panic?',
+        options:['He is impatient and annoyed','He is calm, supportive, and willing to help a friend in need','He doesn\'t care about the deadline','He wants credit for the work'], answer:1,
+        explain:'Offering calm reassurance and practical help shows Dennis is a supportive, dependable friend.'},
+      {context:`"So, the two pals did not go out for a snack in the end"`, prompt:'Why did they end up not going out for a snack?',
+        options:['They weren\'t hungry','Finishing the script took until ten p.m., too late for their plan','Meg forgot about the snack shop','Dennis refused to go'], answer:1,
+        explain:'The text explains that by the time the script was done, it was already ten p.m. — too late for their original snack shop plan.'},
+      {context:`"Meg did have some lemon drops for them"`, prompt:'What does Meg having lemon drops for them at the end suggest?',
+        options:['She wanted to share something nice to thank Dennis for his help','She forgot she had them','She was still panicking','She didn\'t want to share'], answer:0,
+        explain:'Offering lemon drops even without going out shows Meg\'s appreciation for Dennis staying to help her.'},
+      {context:'Think about the whole story.', prompt:'What is the theme of this story?',
+        options:['Snacks are more important than school work','Helping a friend under pressure and being flexible when plans change','Procrastination never causes problems','Scripts are easy to finish'], answer:1,
+        explain:'Dennis puts aside his own plans to help Meg with an urgent deadline, and they adapt their evening together.'},
+      {context:'"They sat to rest and make new plans to visit the snack shop."', prompt:'Why does the story end with them planning to visit the snack shop another time?',
+        options:['To show they gave up on the plan entirely','To show they didn\'t give up on their original plan, just postponed it','To show they are angry with each other','To show the snack shop closed forever'], answer:1,
+        explain:'Making "new plans to visit the snack shop" shows their friendship and original plan continue, just delayed.'},
+    ]},
+  { id:'vocab', tab:'Vocab', title:"Case File 3 — Vocabulary Clues", icon:'🔍',
+    intro:"Every good detective reads for clues hidden in context. Figure out what each word means the way it's used in the story.",
+    type:'mc', points:10,
+    questions:[
+      {context:`"she was candid with him"`, prompt:'What does candid mean here?',
+        options:['Honest and direct','Secretive','Angry','Confused'], answer:0,
+        explain:'Being candid means being open and honest about something, which is what Meg was with Dennis.'},
+      {context:`"she had to submit the text in class"`, prompt:'What does submit mean here?',
+        options:['Turn in or hand over','Write from scratch','Ignore','Delete'], answer:0,
+        explain:'Submitting the text means turning it in to be graded or reviewed.'},
+      {context:`"a number of things left to publish the script"`, prompt:'What does publish mean here?',
+        options:['To prepare and release something for others to see','To hide something','To delete something','To rewrite completely'], answer:0,
+        explain:'Publishing the script means finishing and releasing it so others can see or use it.'},
+      {context:`"He did not want to witness her panic"`, prompt:'What does panic mean here?',
+        options:['A sudden strong feeling of fear or worry','Calm confidence','Boredom','Happiness'], answer:0,
+        explain:'Panic is a sudden overwhelming worry — what Meg felt realizing her deadline was so close.'},
+      {context:`"Dennis told Meg not to fret"`, prompt:'What does fret mean here?',
+        options:['To worry','To celebrate','To sleep','To eat'], answer:0,
+        explain:'To fret means to worry — Dennis is telling Meg to calm down.'},
+      {context:`"Dennis would set up an index"`, prompt:'What does index mean here?',
+        options:['An organized list or reference guide','A type of food','A type of drink','A type of chair'], answer:0,
+        explain:'An index is an organized reference tool, useful for keeping a big piece of writing organized.'},
+      {context:`"jot down edits for the text"`, prompt:'What does edits mean here?',
+        options:['Changes or corrections made to writing','New pages added','Pictures added','The whole document deleted'], answer:0,
+        explain:'Edits are corrections or changes made to improve a piece of writing.'},
+      {context:`"save everything on her laptop"`, prompt:'What does laptop mean here?',
+        options:['A portable computer','A type of desk','A type of book','A type of phone booth'], answer:0,
+        explain:'A laptop is a portable computer, used here to save the script.'},
+      {context:`"she had to finish her work on a script"`, prompt:'What does script mean here?',
+        options:['Written text for a performance or presentation','A grocery list','A text message','A math worksheet'], answer:0,
+        explain:'A script is written text meant to be performed or presented, like for a class project.'},
+      {context:`"get some hummus, chips, and a cold drink"`, prompt:'What does hummus mean here?',
+        options:['A dip made from chickpeas','A type of candy','A type of soda','A type of chip'], answer:0,
+        explain:'Hummus is a savory dip, often eaten with chips — one of the snack shop items Dennis wanted.'},
+    ]},
+  { id:'spelling', tab:'Spelling', title:"Case File 4 — Spelling Forensics", icon:'✏️',
+    intro:"A detective's notes have to be exact. Listen to each word and spell it correctly to file it as evidence.",
+    type:'spell', points:15,
+    questions:[
+      {word:'campus', sentence:'Dennis went to meet Meg on campus.'},
+      {word:'candid', sentence:'Meg was candid with Dennis.'},
+      {word:'submit', sentence:'She had to submit the text in class.'},
+      {word:'publish', sentence:'She had things left to publish the script.'},
+      {word:'panic', sentence:'Dennis did not want to witness her panic.'},
+      {word:'index', sentence:'Dennis would set up an index.'},
+      {word:'laptop', sentence:'They saved everything on her laptop.'},
+      {word:'fret', sentence:'Dennis told Meg not to fret.'},
+      {word:'lemon', sentence:'Meg had some lemon drops for them.'},
+      {word:'hummus', sentence:'He asked Meg to get some hummus.'},
+    ]},
+  { id:'structure', tab:'Structure', title:"Case File 5 — Structure Analysis", icon:'🧩',
+    intro:"This story is full of two-syllable words. Mark the syllables and welded chunks to crack the code.",
+    type:'mc', points:10,
+    questions:[
+      {context:'campus', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Campus breaks into two syllable chunks: cam-pus.'},
+      {context:'candid', prompt:'Which letters form the welded chunk in this word?', options:['ca','an','di','id'], answer:1,
+        explain:'"An" is a welded sound taught as one unit — you can hear it stay together in candid.'},
+      {context:'submit', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Submit breaks into two syllable chunks: sub-mit.'},
+      {context:'publish', prompt:'Which letters form the ending digraph?', options:['pu','bl','is','sh'], answer:3,
+        explain:'S and h together make one new sound, /sh/, at the end of publish.'},
+      {context:'index', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Index breaks into two syllable chunks: in-dex.'},
+      {context:'laptop', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Laptop breaks into two syllable chunks: lap-top.'},
+      {context:'panic', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Panic breaks into two syllable chunks: pan-ic.'},
+      {context:'hummus', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Hummus breaks into two syllable chunks: hum-mus.'},
+      {context:'fret', prompt:'Which letters form the beginning blend?', options:['fr','re','et','fe'], answer:0,
+        explain:'You can still hear /f/ and /r/ blended together at the start of fret.'},
+      {context:'lemon', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Lemon breaks into two syllable chunks: lem-on.'},
+    ]},
+];
+
+/* =========================================================
+   STORY 9: THE RUNNING CONTEST — WRS Substep 3.2 AB
+   ========================================================= */
+const KEY_TERMS_RUNNING_CONTEST = ['another','new','other(s)','after','over','down','again','time','place','around','says'];
+const STORY_PARAGRAPHS_RUNNING_CONTEST = [
+  `Ted plans to win the next running contest this month. Everyone thinks he will come in second again. Ted does not wish to be unkind, but he does not want Jim or Patrick to win another time. They have gotten so many medals in the past! Ted has been putting in a lot of work to invest in his skills.`,
+  `Ted gets that he must run as quick as a rabbit to be the new number one. At the signal, he must dash off and sprint as fast as he can. Blast-off! Ted kicks off to get a jump on the others. After the children run over to the cliff, they must also bolt down to the fishpond and back.`,
+  `At first, Ted is only in fifth place, but he does not panic. He has to pass Patrick and Jim at the cliff. All of a sudden, Ted pushes past Patrick, and then he zips by Jim. Ted is out in front of the pack as he rushes to the fishpond and back. Yes! He comes in first and now he is number one!`,
+  `"It is a thrill to get credit for this win and put a medal around my neck at last," says Ted.`,
+];
+const ROUNDS_RUNNING_CONTEST = [
+  { id:'sequence', tab:'Timeline', title:"Case File 1 — Timeline Reconstruction", icon:'🗺️',
+    intro:"Drag the evidence into the correct order to rebuild the race.",
+    type:'sequence', points:5,
+    sets:[
+      { label:'First half — put these in order', events:[
+          "Ted plans to win the next running contest.",
+          "Everyone thinks Jim or Patrick will win again.",
+          "At the signal, Ted dashes off and sprints.",
+          "The children run to the cliff and bolt down to the fishpond.",
+      ]},
+      { label:'Second half — put these in order', events:[
+          "At first, Ted is only in fifth place.",
+          "Ted pushes past Patrick, then zips by Jim.",
+          "Ted rushes to the fishpond and back in first place.",
+          "Ted gets a medal and feels a thrill.",
+      ]},
+    ]},
+  { id:'inference', tab:'Inference', title:"Case File 2 — Detective Inference", icon:'🧠',
+    intro:"Read between the lines to solve these.",
+    type:'mc', points:12,
+    questions:[
+      {context:`"Everyone thinks he will come in second again."`, prompt:'Why does everyone think Ted will "come in second again"?',
+        options:['He has come in second in past contests and hasn\'t won before','He told everyone he would lose','He is new to running','He is the fastest runner ever'], answer:0,
+        explain:'The word "again" signals this has happened before — Ted has a pattern of finishing second.'},
+      {context:`"Ted does not wish to be unkind, but he does not want Jim or Patrick to win another time."`, prompt:'Why does Ted say he "does not wish to be unkind" about not wanting Jim or Patrick to win?',
+        options:['He doesn\'t want to seem like he\'s wishing bad things on his friends, even though he wants to win','He actually wants them to win','He doesn\'t care about the contest','He wants to quit racing'], answer:0,
+        explain:'This shows Ted\'s inner conflict — he wants to win but doesn\'t want that wish to seem mean toward his friends.'},
+      {context:`"Ted has been putting in a lot of work to invest in his skills."`, prompt:'What does this line tell you about Ted?',
+        options:['He gave up on training','He has been training hard to prepare for this contest','He is naturally the fastest without effort','He doesn\'t care about winning'], answer:1,
+        explain:'"Putting in a lot of work" shows deliberate, ongoing effort and preparation.'},
+      {context:`"he must run as quick as a rabbit"`, prompt:'Why might the author describe Ted running "as quick as a rabbit"?',
+        options:['To emphasize how fast Ted needs to run to win','To say Ted is scared like a rabbit','To describe Ted\'s appearance','To say the race is about rabbits'], answer:0,
+        explain:'Comparing Ted\'s needed speed to a rabbit emphasizes just how fast he has to run to win.'},
+      {context:`"At first, Ted is only in fifth place, but he does not panic."`, prompt:'What can you infer from this line?',
+        options:['Ted gives up immediately','Ted stays calm and confident even when he\'s behind','Ted is confused about the race','Ted decides to stop running'], answer:1,
+        explain:'Not panicking while behind in fifth place shows Ted stays calm and trusts he can still catch up.'},
+      {context:`"He has to pass Patrick and Jim at the cliff."`, prompt:'Why was it significant that Ted had to pass both Patrick and Jim?',
+        options:['They were strangers to Ted','They were his main competition who had won medals before','They were slower than everyone else','They weren\'t actually racing'], answer:1,
+        explain:'The story earlier explains Patrick and Jim "have gotten so many medals in the past" — they were the runners to beat.'},
+      {context:`"Ted is out in front of the pack"`, prompt:'What does this tell you about the race at that point?',
+        options:['Ted has taken the lead over all the other runners','Ted is now last','Ted has stopped running','The race has ended in a tie'], answer:0,
+        explain:'"Out in front of the pack" means Ted is now leading, ahead of every other runner.'},
+      {context:'"It is a thrill to get credit for this win and put a medal around my neck at last," says Ted.', prompt:'How does Ted feel about winning, based on his final quote?',
+        options:['Thrilled and proud to finally get credit and a medal','Disappointed with the result','Indifferent about the outcome','Worried about the next race'], answer:0,
+        explain:'Calling it "a thrill" and mentioning the medal "at last" shows genuine excitement and pride.'},
+      {context:'Think about the whole story.', prompt:'What is the theme of this story?',
+        options:['Hard work and staying calm under pressure can lead to success','Winning is not important','Racing is dangerous','Friends should never compete'], answer:0,
+        explain:'Ted\'s preparation and calm comeback from fifth place both contributed to his eventual win.'},
+      {context:'"It is a thrill to get credit for this win and put a medal around my neck at last," says Ted.', prompt:'Why does the story end with Ted\'s own words about the win?',
+        options:['To let the reader hear directly how meaningful this achievement is to him','To confuse the reader','To introduce a new character','To end the story on a sad note'], answer:0,
+        explain:'Ending with Ted\'s direct quote gives the reader a personal, first-hand sense of his excitement.'},
+    ]},
+  { id:'vocab', tab:'Vocab', title:"Case File 3 — Vocabulary Clues", icon:'🔍',
+    intro:"Every good detective reads for clues hidden in context. Figure out what each word means the way it's used in the story.",
+    type:'mc', points:10,
+    questions:[
+      {context:`"Ted does not wish to be unkind"`, prompt:'What does unkind mean here?',
+        options:['Not nice or thoughtful toward others','Generous','Funny','Quiet'], answer:0,
+        explain:'Unkind describes behavior that isn\'t nice toward others — the opposite of thoughtful.'},
+      {context:`"putting in a lot of work to invest in his skills"`, prompt:'What does invest mean here?',
+        options:['To put time or effort into something for future benefit','To ignore something','To give up on something','To sell something'], answer:0,
+        explain:'Investing in his skills means putting in effort now so he\'ll benefit — winning — later.'},
+      {context:`"At the signal, he must dash off"`, prompt:'What does signal mean here?',
+        options:['A sign that tells people when to start or act','A type of medal','A type of shoe','A finish line'], answer:0,
+        explain:'The signal is what tells the runners exactly when to start racing.'},
+      {context:`"he must dash off and sprint"`, prompt:'What does dash mean here?',
+        options:['To run suddenly and quickly','To walk slowly','To stop and rest','To sit down'], answer:0,
+        explain:'To dash is to run suddenly and quickly, fitting the start of a race.'},
+      {context:`"sprint as fast as he can"`, prompt:'What does sprint mean here?',
+        options:['To run at full speed for a short distance','To jog slowly','To walk','To crawl'], answer:0,
+        explain:'Sprinting means running at top speed, which Ted does after the starting signal.'},
+      {context:`"they must also bolt down to the fishpond"`, prompt:'What does bolt mean here?',
+        options:['To move very quickly, like a sudden dash','To walk calmly','To stand still','To climb slowly'], answer:0,
+        explain:'To bolt is to move suddenly and quickly — similar to dash or sprint.'},
+      {context:`"he does not panic"`, prompt:'What does panic mean here?',
+        options:['Sudden overwhelming fear or worry','Calm confidence','Happiness','Boredom'], answer:0,
+        explain:'Panic is a sudden feeling of fear or worry — something Ted avoids even while behind in the race.'},
+      {context:`"It is a thrill to get credit for this win"`, prompt:'What does thrill mean here?',
+        options:['A feeling of great excitement','A feeling of sadness','A feeling of boredom','A feeling of anger'], answer:0,
+        explain:'A thrill is a rush of excitement — exactly what Ted feels after winning.'},
+      {context:`"get credit for this win"`, prompt:'What does credit mean here?',
+        options:['Recognition or praise for something achieved','Blame for a mistake','Money owed','A type of medal'], answer:0,
+        explain:'Getting credit means being recognized for an accomplishment — here, Ted\'s win.'},
+      {context:`"Ted is out in front of the pack"`, prompt:'What does pack mean here?',
+        options:['A group of people or animals moving together','A type of bag','A single runner','A finish line'], answer:0,
+        explain:'The "pack" refers to the group of runners moving together in the race.'},
+    ]},
+  { id:'spelling', tab:'Spelling', title:"Case File 4 — Spelling Forensics", icon:'✏️',
+    intro:"A detective's notes have to be exact. Listen to each word and spell it correctly to file it as evidence.",
+    type:'spell', points:15,
+    questions:[
+      {word:'contest', sentence:'Ted plans to win the next running contest.'},
+      {word:'invest', sentence:'Ted has been putting in work to invest in his skills.'},
+      {word:'signal', sentence:'At the signal, he must dash off.'},
+      {word:'rabbit', sentence:'He must run as quick as a rabbit.'},
+      {word:'fishpond', sentence:'They must bolt down to the fishpond.'},
+      {word:'thrill', sentence:'It is a thrill to get credit for this win.'},
+      {word:'credit', sentence:'Ted gets credit for the win.'},
+      {word:'sprint', sentence:'He must sprint as fast as he can.'},
+      {word:'blast', sentence:'Blast-off! Ted kicks off to get a jump.'},
+      {word:'dash', sentence:'He must dash off at the signal.'},
+    ]},
+  { id:'structure', tab:'Structure', title:"Case File 5 — Structure Analysis", icon:'🧩',
+    intro:"This story is full of two-syllable words. Mark the syllables and blends to crack the code.",
+    type:'mc', points:10,
+    questions:[
+      {context:'contest', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Contest breaks into two syllable chunks: con-test.'},
+      {context:'invest', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Invest breaks into two syllable chunks: in-vest.'},
+      {context:'signal', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Signal breaks into two syllable chunks: sig-nal.'},
+      {context:'rabbit', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Rabbit breaks into two syllable chunks: rab-bit.'},
+      {context:'fishpond', prompt:'Which letters form the digraph in this word?', options:['fi','sh','po','nd'], answer:1,
+        explain:'S and h together make one new sound, /sh/, in the middle of fishpond.'},
+      {context:'thrill', prompt:'Which letters form the beginning digraph?', options:['th','hr','il','ll'], answer:0,
+        explain:'T and h together make one new sound, /th/, at the start of thrill.'},
+      {context:'credit', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Credit breaks into two syllable chunks: cred-it.'},
+      {context:'sprint', prompt:'Which letters form the beginning 3-letter blend?', options:['spr','pri','int','rin'], answer:0,
+        explain:'You can hear /s/ /p/ /r/ blended together at the start of sprint.'},
+      {context:'blast', prompt:'Which letters form the beginning blend?', options:['bl','la','as','st'], answer:0,
+        explain:'You can still hear /b/ and /l/ blended together at the start of blast.'},
+      {context:'dash', prompt:'Which letters form the ending digraph?', options:['da','as','sh','ash'], answer:2,
+        explain:'S and h together make one new sound, /sh/, at the end of dash.'},
+    ]},
+];
+
+/* =========================================================
+   STORY 10: PROBLEMS AT THE COMMON — WRS Substep 3.2 B
+   ========================================================= */
+const KEY_TERMS_PROBLEMS_COMMON = ['another','under','down','over','other(s)','after','new','town','Mr.','make','saw'];
+const STORY_PARAGRAPHS_PROBLEMS_COMMON = [
+  `The squall last month had hit the town common with gusts of wind and now everything was a mess. The town boss had to call Mr. Griffin as he did the best work with this kind of stuff. He told Mr. Griffin that there was cash in the bank, but he must get a bid to submit.`,
+  `Mr. Griffin said he would come check out the mess in an instant. When Mr. Griffin got to the common, he could tell that it was a complex job. The sandlot to the left of the common was full of trash, and the swing set for the kids was a mess. One swing had split in two and another swing had a big dent in it. The posts on the swing set had cracks which could put the kids at risk. There were also two lampposts that were now under some branches.`,
+  `Mr. Griffin first had to jot down all the numbers on a slip, and rush over to the town boss to hand in his bid. Still, Mr. Griffin would have to enlist help and must, at best, make a small profit. This mess would cost the town hundreds and hundreds in cash.`,
+  `The boss told Mr. Griffin that the numbers would work, and that he could get to work on the common now. Mr. Griffin got his best staff to assist him with yet another job. With one quick text, Jill, Brock, and the others were on the job.`,
+  `They all went in shifts to pick up the trash everywhere. Then they had to drag the fallen branches and push them into a big truck. After that, they had to install new posts under the swing set and attach new swings for the kids. The lampposts got a fix with some new straps and bolts. Glass panels were put over the backs and tops of the lamps.`,
+  `At the end of the job, the town boss saw the contrast. The common was back to its old self. He said, "Mr. Griffin, you impress me!"`,
+];
+const ROUNDS_PROBLEMS_COMMON = [
+  { id:'sequence', tab:'Timeline', title:"Case File 1 — Timeline Reconstruction", icon:'🗺️',
+    intro:"Drag the evidence into the correct order to rebuild the repair job.",
+    type:'sequence', points:5,
+    sets:[
+      { label:'First half — put these in order', events:[
+          "A squall hit the town common and left a mess.",
+          "The town boss calls Mr. Griffin for help.",
+          "Mr. Griffin checks out the mess and sees it is complex.",
+          "Mr. Griffin writes up a bid with all the numbers.",
+      ]},
+      { label:'Second half — put these in order', events:[
+          "The town boss approves the bid and numbers.",
+          "Mr. Griffin's staff picks up trash and drags branches.",
+          "They install new posts and swings, and fix the lampposts.",
+          "The town boss sees the common looking like its old self.",
+      ]},
+    ]},
+  { id:'inference', tab:'Inference', title:"Case File 2 — Detective Inference", icon:'🧠',
+    intro:"Read between the lines to solve these.",
+    type:'mc', points:12,
+    questions:[
+      {context:`"The town boss had to call Mr. Griffin as he did the best work with this kind of stuff."`, prompt:'Why did the town boss call Mr. Griffin specifically?',
+        options:['He was the only person available','He did the best work with this kind of repair job','He offered the lowest price','He was the boss\'s relative'], answer:1,
+        explain:'The text says directly that Mr. Griffin "did the best work with this kind of stuff" — that\'s why he was chosen.'},
+      {context:`"he could tell that it was a complex job"`, prompt:'What can you infer from this line?',
+        options:['The damage was minor and quick to fix','The damage was extensive and would take real effort to fix','Mr. Griffin decided not to take the job','The common needed no repairs at all'], answer:1,
+        explain:'Calling it "complex" right after describing all the damage shows this would be a serious repair job.'},
+      {context:`"The posts on the swing set had cracks which could put the kids at risk."`, prompt:'Why does the story mention this detail?',
+        options:['To show the damage was a safety problem, not just messy','To describe the color of the posts','To explain how old the swing set was','To introduce a new character'], answer:0,
+        explain:'Mentioning "at risk" specifically points out this isn\'t just an eyesore — it\'s a real safety hazard for kids.'},
+      {context:`"Mr. Griffin would have to enlist help"`, prompt:'Why did Mr. Griffin need to "enlist help" instead of doing the job alone?',
+        options:['The job was too big and complex for one person','He didn\'t want to work','He was too tired','The town boss ordered him to hire others'], answer:0,
+        explain:'Given how much needed fixing — trash, branches, posts, lampposts — one person alone couldn\'t handle it.'},
+      {context:`"must, at best, make a small profit"`, prompt:'What does this line suggest about the job?',
+        options:['Mr. Griffin will get very rich from this job','The job wasn\'t very profitable for him, but he took it on anyway','Mr. Griffin lost money on the job','The town boss cheated Mr. Griffin'], answer:1,
+        explain:'"At best, make a small profit" shows this job wasn\'t a big money-maker, yet Mr. Griffin still did it.'},
+      {context:`"The boss told Mr. Griffin that the numbers would work"`, prompt:'Why did the boss need to approve the numbers before work could start?',
+        options:['The town needed to agree to the cost before spending money','Mr. Griffin forgot the numbers','The numbers were wrong','It was just a formality with no real purpose'], answer:0,
+        explain:'The town\'s money is being spent, so the boss needed to approve the bid before Mr. Griffin could begin.'},
+      {context:`"With one quick text, Jill, Brock, and the others were on the job."`, prompt:'What can you infer about Jill and Brock from this line?',
+        options:['They were reluctant to help','They responded quickly and were ready to help right away','They refused the job','They didn\'t know Mr. Griffin'], answer:1,
+        explain:'"One quick text" and being "on the job" right after shows a fast, willing response.'},
+      {context:'Think about the detailed repair steps.', prompt:'Why does the story describe each repair step (trash, branches, posts, lampposts) in detail?',
+        options:['To show how much work was involved in fixing the common','To confuse the reader','To pad out the story','To introduce more characters'], answer:0,
+        explain:'Listing each step shows the true scale and effort of the whole repair project.'},
+      {context:'"Mr. Griffin, you impress me!"', prompt:'What does the town boss\'s reaction tell you about the final result?',
+        options:['He was disappointed','The repair job exceeded his expectations','He didn\'t notice any change','He wanted more repairs'], answer:1,
+        explain:'Saying "you impress me" shows the boss was pleasantly surprised by how well the job turned out.'},
+      {context:'Think about the whole story.', prompt:'What is the theme of this story?',
+        options:['A big problem can be solved through organized teamwork and effort','Repairs are always too expensive to do','It\'s better to ignore storm damage','One person can fix anything alone'], answer:0,
+        explain:'From the initial assessment to the final team effort, the story shows how a big mess gets solved through planning and teamwork.'},
+    ]},
+  { id:'vocab', tab:'Vocab', title:"Case File 3 — Vocabulary Clues", icon:'🔍',
+    intro:"Every good detective reads for clues hidden in context. Figure out what each word means the way it's used in the story.",
+    type:'mc', points:10,
+    questions:[
+      {context:`"The squall last month had hit the town common"`, prompt:'What does squall mean here?',
+        options:['A sudden, violent storm with strong wind','A gentle rain','A sunny day','An earthquake'], answer:0,
+        explain:'A squall is a sudden violent storm, which explains the gusts of wind and resulting mess.'},
+      {context:`"with gusts of wind"`, prompt:'What does gusts mean here?',
+        options:['Sudden strong bursts of wind','Steady soft breezes','Waves of water','Bright flashes of light'], answer:0,
+        explain:'Gusts are sudden strong bursts of wind, part of what made the squall so damaging.'},
+      {context:`"he could tell that it was a complex job"`, prompt:'What does complex mean here?',
+        options:['Complicated, having many parts','Simple','Quick','Boring'], answer:0,
+        explain:'Complex describes something with many parts — matching all the different repairs needed.'},
+      {context:`"The sandlot to the left of the common was full of trash"`, prompt:'What does sandlot mean here?',
+        options:['An empty area of sandy or bare ground used for play','A swimming pool','A parking garage','A flower garden'], answer:0,
+        explain:'A sandlot is an open, often bare or sandy area used for play — one part of the town common.'},
+      {context:`"Mr. Griffin would have to enlist help"`, prompt:'What does enlist mean here?',
+        options:['To get support or assistance from others','To refuse help','To work entirely alone','To give up'], answer:0,
+        explain:'To enlist help means to bring others in to assist with a task.'},
+      {context:`"must, at best, make a small profit"`, prompt:'What does profit mean here?',
+        options:['Money earned after costs are paid','Money spent','Money borrowed','Money lost'], answer:0,
+        explain:'Profit is the money left over after paying for costs — here, a small amount for Mr. Griffin.'},
+      {context:`"the town boss saw the contrast"`, prompt:'What does contrast mean here?',
+        options:['A clear difference between two things','A close similarity','A repeated pattern','A mistake'], answer:0,
+        explain:'The contrast is the clear difference between the messy common before and the fixed common after.'},
+      {context:`""Mr. Griffin, you impress me!""`, prompt:'What does impress mean here?',
+        options:['To cause someone to feel admiration','To cause someone to feel bored','To cause someone to feel angry','To cause someone to feel confused'], answer:0,
+        explain:'To impress someone is to earn their admiration — the boss is admiring Mr. Griffin\'s work.'},
+      {context:`"they had to install new posts"`, prompt:'What does install mean here?',
+        options:['To put something in place and set it up','To remove something','To break something','To sell something'], answer:0,
+        explain:'To install means to put something in place and set it up for use — here, the new posts.'},
+      {context:`"he must get a bid to submit"`, prompt:'What does bid mean here?',
+        options:['An offer stating a price for doing work','A type of tool','A finished report','A complaint'], answer:0,
+        explain:'A bid is a formal offer stating what a job will cost — what Mr. Griffin needed to prepare.'},
+    ]},
+  { id:'spelling', tab:'Spelling', title:"Case File 4 — Spelling Forensics", icon:'✏️',
+    intro:"A detective's notes have to be exact. Listen to each word and spell it correctly to file it as evidence.",
+    type:'spell', points:15,
+    questions:[
+      {word:'instant', sentence:'He would come check out the mess in an instant.'},
+      {word:'complex', sentence:'It was a complex job.'},
+      {word:'sandlot', sentence:'The sandlot was full of trash.'},
+      {word:'lampposts', sentence:'Two lampposts were under some branches.'},
+      {word:'enlist', sentence:'Mr. Griffin would have to enlist help.'},
+      {word:'profit', sentence:'He must make a small profit.'},
+      {word:'contrast', sentence:'The town boss saw the contrast.'},
+      {word:'impress', sentence:'Mr. Griffin, you impress me!'},
+      {word:'install', sentence:'They had to install new posts.'},
+      {word:'submit', sentence:'He must get a bid to submit.'},
+    ]},
+  { id:'structure', tab:'Structure', title:"Case File 5 — Structure Analysis", icon:'🧩',
+    intro:"This story is full of welded chunks and two-syllable words. Mark them to crack the code.",
+    type:'mc', points:10,
+    questions:[
+      {context:'instant', prompt:'Which letters form the welded chunk in this word?', options:['in','st','an','nt'], answer:2,
+        explain:'"An" is a welded sound taught as one unit — you can hear it stay together in instant.'},
+      {context:'sandlot', prompt:'Which letters form the welded chunk in this word?', options:['sa','an','dl','ot'], answer:1,
+        explain:'"An" is a welded sound taught as one unit — you can hear it stay together in sandlot.'},
+      {context:'lampposts', prompt:'Which letters form the welded chunk in this word?', options:['la','am','pp','sts'], answer:1,
+        explain:'"Am" is a welded sound taught as one unit — you can hear it stay together in lampposts.'},
+      {context:'install', prompt:'Which letters form the welded chunk in this word?', options:['in','st','al','all'], answer:3,
+        explain:'"All" is a welded sound taught as one unit — you can hear it stay together in install.'},
+      {context:'complex', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Complex breaks into two syllable chunks: com-plex.'},
+      {context:'enlist', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Enlist breaks into two syllable chunks: en-list.'},
+      {context:'profit', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Profit breaks into two syllable chunks: prof-it.'},
+      {context:'impress', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Impress breaks into two syllable chunks: im-press.'},
+      {context:'contrast', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Contrast breaks into two syllable chunks: con-trast.'},
+      {context:'submit', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Submit breaks into two syllable chunks: sub-mit.'},
+    ]},
+];
+
+/* =========================================================
+   STORY 11: CRAFT CLASS — WRS Substep 3.3 AB
+   ========================================================= */
+const KEY_TERMS_CRAFT_CLASS = ['Mrs.','water(s)','talk','walk','right','know','town','make','own','three',"o'clock",'goes','use'];
+const STORY_PARAGRAPHS_CRAFT_CLASS = [
+  `Mrs. Waters instructs a craft class every Monday. The word has gotten out that this class is the best. In fact, the talk in the town is nonstop. So many children now attend, that the class list is full!`,
+  `In class, each kid gets to grab a bunch of stuff to make their very own craft. There are baskets and buckets full of objects to pick for each project; bits of glass and metal, scraps of fabric, pens, string, felt... everything you can think of!`,
+  `Nelson and Alex walk to Mrs. Waters' class. The class is at three o'clock on the dot and she insists that the kids be prompt. Nelson and Alex are quick to grab a spot right in front.`,
+  `Mrs. Waters tells the kids about their new craft project. They will make puppets! The class goes wild.`,
+  `Next, Mrs. Waters passes out a sock to each kid. Then, they are off to collect all the stuff they wish to use to construct their very own puppet. Nelson is quick to run to the buckets with the string, pom-poms, and ink pens. Alex dashes to the baskets to get scraps of fabric, stamps, and some plastic shells.`,
+  `The kids work fast to finish the project. They know that Mrs. Waters will let them try out their puppets!`,
+];
+const ROUNDS_CRAFT_CLASS = [
+  { id:'sequence', tab:'Timeline', title:"Case File 1 — Timeline Reconstruction", icon:'🗺️',
+    intro:"Drag the evidence into the correct order to rebuild craft class.",
+    type:'sequence', points:5,
+    sets:[
+      { label:'First half — put these in order', events:[
+          "Mrs. Waters' craft class becomes so popular that the class list fills up.",
+          "Nelson and Alex walk to class and grab a spot in front.",
+          "Mrs. Waters tells the kids about the new project: puppets.",
+          "The class goes wild with excitement.",
+      ]},
+      { label:'Second half — put these in order', events:[
+          "Mrs. Waters passes out a sock to each kid.",
+          "Nelson runs to get string, pom-poms, and ink pens.",
+          "Alex dashes to get scraps of fabric and other supplies.",
+          "The kids work fast to finish their puppets.",
+      ]},
+    ]},
+  { id:'inference', tab:'Inference', title:"Case File 2 — Detective Inference", icon:'🧠',
+    intro:"Read between the lines to solve these.",
+    type:'mc', points:12,
+    questions:[
+      {context:`"So many children now attend, that the class list is full!"`, prompt:'Why did the class list get full?',
+        options:['The class is very cheap','The class became very popular because word spread that it was the best','Mrs. Waters forced kids to join','The class is only offered once'], answer:1,
+        explain:'The text explains "the word has gotten out that this class is the best" right before mentioning the full list.'},
+      {context:`"the talk in the town is nonstop"`, prompt:'What does "the talk in the town is nonstop" suggest about the class\'s reputation?',
+        options:['People are talking about it constantly, showing how popular it is','No one is interested in the class','The talk is mostly negative','The class has closed down'], answer:0,
+        explain:'"Nonstop" talk shows people can\'t stop discussing how great the class is.'},
+      {context:`"she insists that the kids be prompt"`, prompt:'Why does Mrs. Waters "insist that the kids be prompt"?',
+        options:['She wants class to run smoothly without delays from latecomers','She doesn\'t like the kids','She wants to end class early','She is testing their memory'], answer:0,
+        explain:'Insisting on promptness helps keep the class organized and running on schedule.'},
+      {context:`"Nelson and Alex are quick to grab a spot right in front."`, prompt:'Why did Nelson and Alex grab "a spot right in front"?',
+        options:['They were told to sit there','They were excited and wanted the best position for class','They were being punished','They arrived last'], answer:1,
+        explain:'Being "quick to grab" the front spot shows their eagerness and excitement for class.'},
+      {context:`"The class goes wild."`, prompt:'What can you infer from this reaction to the puppet project?',
+        options:['The kids were disappointed','The kids were very excited about making puppets','The kids didn\'t understand the project','The kids wanted a different project'], answer:1,
+        explain:'"Goes wild" is a strong reaction showing genuine excitement about the new project.'},
+      {context:`"Mrs. Waters passes out a sock to each kid."`, prompt:'Why did Mrs. Waters pass out a sock to each kid?',
+        options:['The sock was the base material for building their puppets','Socks were a snack','The kids needed new socks','It was unrelated to the project'], answer:0,
+        explain:'Since they were making puppets, the sock served as the base material for each kid\'s puppet.'},
+      {context:'Nelson runs for string, pom-poms, and ink pens; Alex dashes for fabric scraps, stamps, and shells.', prompt:'What does Nelson and Alex choosing different supplies suggest?',
+        options:['They may be planning different designs for their puppets','They are not friends','One of them is not participating','They were told exactly what to get'], answer:0,
+        explain:'Different supply choices suggest each kid has their own creative vision for their puppet.'},
+      {context:`"The kids work fast to finish the project."`, prompt:'What does "the kids work fast to finish the project" tell you about their motivation?',
+        options:['They were excited and eager to try out their finished puppets','They wanted class to end quickly','They were bored with the project','They were forced to hurry'], answer:0,
+        explain:'The next line explains they "know that Mrs. Waters will let them try out their puppets" — that\'s their motivation to hurry.'},
+      {context:'Think about the whole story.', prompt:'What is the theme of this story?',
+        options:['Creativity and excitement can come from a well-run, engaging class','Crafting is too difficult for kids','Classes should be small','Puppets are hard to make'], answer:0,
+        explain:'The popular, well-organized class leads to genuine excitement and creative engagement from the kids.'},
+      {context:'The story ends before showing the finished puppets.', prompt:'Why might the author end the story before showing the finished puppets?',
+        options:['To leave the reader curious and imagining what the puppets will look like','Because puppets aren\'t interesting','Because the story ran out of room','Because the kids never finished'], answer:0,
+        explain:'Ending on anticipation ("they know Mrs. Waters will let them try out their puppets") leaves the reader imagining the fun still to come.'},
+    ]},
+  { id:'vocab', tab:'Vocab', title:"Case File 3 — Vocabulary Clues", icon:'🔍',
+    intro:"Every good detective reads for clues hidden in context. Figure out what each word means the way it's used in the story.",
+    type:'mc', points:10,
+    questions:[
+      {context:`"Mrs. Waters instructs a craft class every Monday."`, prompt:'What does instructs mean here?',
+        options:['Teaches or guides how to do something','Plays with','Ignores','Watches'], answer:0,
+        explain:'Instructing a class means teaching or guiding students through activities.'},
+      {context:`"the talk in the town is nonstop"`, prompt:'What does nonstop mean here?',
+        options:['Continuing without stopping','Occasional','Rare','Silent'], answer:0,
+        explain:'Nonstop describes something ongoing without any breaks — the talk about the class never seems to stop.'},
+      {context:`"So many children now attend"`, prompt:'What does attend mean here?',
+        options:['To be present at an event or class','To skip','To forget','To cancel'], answer:0,
+        explain:'To attend a class means to show up and be present for it.'},
+      {context:`"she insists that the kids be prompt"`, prompt:'What does prompt mean here?',
+        options:['On time, punctual','Late','Early by a lot','Absent'], answer:0,
+        explain:'Being prompt means arriving right on time, not late.'},
+      {context:`"she insists that the kids be prompt"`, prompt:'What does insists mean here?',
+        options:['To firmly demand or require something','To suggest gently','To forget about something','To allow anything'], answer:0,
+        explain:'Insisting means firmly requiring something — Mrs. Waters requires promptness, not just suggesting it.'},
+      {context:`"to construct their very own puppet"`, prompt:'What does construct mean here?',
+        options:['To build or put together','To take apart','To throw away','To draw'], answer:0,
+        explain:'Constructing a puppet means building or assembling it from materials.'},
+      {context:`"scraps of fabric, pens, string, felt"`, prompt:'What does fabric mean here?',
+        options:['Cloth material','Metal pieces','Wood chips','Paper clips'], answer:0,
+        explain:'Fabric is cloth material, one of the craft supplies available to the kids.'},
+      {context:`"scraps of fabric, pens, string, felt"`, prompt:'What does scraps mean here?',
+        options:['Small leftover pieces of material','Whole new items','Tools','Furniture'], answer:0,
+        explain:'Scraps are small leftover pieces, like small bits of fabric, useful for crafts.'},
+      {context:`"objects to pick for each project"`, prompt:'What does project mean here?',
+        options:['A planned piece of work or activity','A finished product only','A mistake','A rule'], answer:0,
+        explain:'A project is a planned activity or piece of work — here, the puppet-making activity.'},
+      {context:`"Alex dashes to the baskets"`, prompt:'What does dashes mean here?',
+        options:['Moves suddenly and quickly','Walks slowly','Sits down','Stands still'], answer:0,
+        explain:'Dashing means moving quickly and suddenly, showing Alex\'s excitement to gather supplies.'},
+    ]},
+  { id:'spelling', tab:'Spelling', title:"Case File 4 — Spelling Forensics", icon:'✏️',
+    intro:"A detective's notes have to be exact. Listen to each word and spell it correctly to file it as evidence.",
+    type:'spell', points:15,
+    questions:[
+      {word:'instructs', sentence:'Mrs. Waters instructs a craft class.'},
+      {word:'construct', sentence:'They wish to construct their very own puppet.'},
+      {word:'nonstop', sentence:'The talk in the town is nonstop.'},
+      {word:'attend', sentence:'So many children now attend.'},
+      {word:'project', sentence:'They pick objects for each project.'},
+      {word:'insists', sentence:'She insists that the kids be prompt.'},
+      {word:'fabric', sentence:'Alex gets scraps of fabric.'},
+      {word:'scraps', sentence:'Alex dashes to get scraps of fabric.'},
+      {word:'puppets', sentence:'They will make puppets.'},
+      {word:'baskets', sentence:'There are baskets full of objects.'},
+    ]},
+  { id:'structure', tab:'Structure', title:"Case File 5 — Structure Analysis", icon:'🧩',
+    intro:"This story is full of two-syllable words and blends. Mark them to crack the code.",
+    type:'mc', points:10,
+    questions:[
+      {context:'instructs', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Instructs breaks into two syllable chunks: in-structs.'},
+      {context:'construct', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Construct breaks into two syllable chunks: con-struct.'},
+      {context:'nonstop', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Nonstop breaks into two syllable chunks: non-stop.'},
+      {context:'attend', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Attend breaks into two syllable chunks: at-tend.'},
+      {context:'project', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Project breaks into two syllable chunks: proj-ect.'},
+      {context:'insists', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Insists breaks into two syllable chunks: in-sists.'},
+      {context:'fabric', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Fabric breaks into two syllable chunks: fab-ric.'},
+      {context:'scraps', prompt:'Which letters form the beginning 3-letter blend?', options:['scr','cra','rap','aps'], answer:0,
+        explain:'You can hear /s/ /k/ /r/ blended together at the start of scraps.'},
+      {context:'puppets', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Puppets breaks into two syllable chunks: pup-pets.'},
+      {context:'baskets', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Baskets breaks into two syllable chunks: bas-kets.'},
+    ]},
+];
+
+/* =========================================================
+   STORY 12: ALAN'S WORK IN THE LAB — WRS Substep 3.3 B
+   ========================================================= */
+const KEY_TERMS_ALANS_LAB = ['water','know','right','see','makes','gives','good'];
+const STORY_PARAGRAPHS_ALANS_LAB = [
+  `Everyone thinks Alan's job at the lab must be dull. The fact is - it's not! The tasks can be long to finish, but Alan relishes this hands-on work.`,
+  `Each month, Alan collects gallons of water from wells and ponds. It is his job to then bring the water back to the lab to test it. There, the staff inspects the water to see if any toxins exist. The lab insists on the best methods which are complex. What they find out about the water makes a big impact.`,
+  `Alan puts the water he collects in flasks. Then he injects the water with a solvent and gives it a strong mix. Alan conducts this test over and over so he can attest that the numbers are exact. This month the water tests are good. The public will know that the water is all right to fish and swim without any problems.`,
+];
+const ROUNDS_ALANS_LAB = [
+  { id:'sequence', tab:'Timeline', title:"Case File 1 — Timeline Reconstruction", icon:'🗺️',
+    intro:"Drag the evidence into the correct order to rebuild Alan's testing process.",
+    type:'sequence', points:5,
+    sets:[
+      { label:'First half — put these in order', events:[
+          "Everyone thinks Alan's lab job must be dull, but he loves it.",
+          "Each month, Alan collects gallons of water from wells and ponds.",
+          "Alan brings the water back to the lab to test it.",
+          "The staff inspects the water for toxins.",
+      ]},
+      { label:'Second half — put these in order', events:[
+          "Alan puts the collected water into flasks.",
+          "Alan injects the water with a solvent and mixes it.",
+          "Alan conducts the test over and over to be exact.",
+          "This month, the water tests are good and safe for the public.",
+      ]},
+    ]},
+  { id:'inference', tab:'Inference', title:"Case File 2 — Detective Inference", icon:'🧠',
+    intro:"Read between the lines to solve these.",
+    type:'mc', points:12,
+    questions:[
+      {context:`"Everyone thinks Alan's job at the lab must be dull. The fact is - it's not!"`, prompt:'Why does the story open this way?',
+        options:['To correct a common assumption and show Alan actually enjoys his work','To say Alan hates his job','To describe the lab building','To introduce a new character'], answer:0,
+        explain:'The story sets up a common assumption ("must be dull") only to immediately contradict it — showing Alan\'s real feelings.'},
+      {context:`"Alan relishes this hands-on work."`, prompt:'What does this suggest about Alan?',
+        options:['He genuinely enjoys doing physical, practical tasks','He finds the work boring','He wants a different job','He avoids hands-on tasks'], answer:0,
+        explain:'"Relishes" means to greatly enjoy — Alan actively likes doing hands-on lab work, not just tolerating it.'},
+      {context:`"The lab insists on the best methods which are complex."`, prompt:'Why is it important that the lab uses complex methods?',
+        options:['Careful, thorough testing is needed for trustworthy results','Complex methods are required by law only','The lab wants to seem impressive','Simple methods don\'t exist'], answer:0,
+        explain:'Testing water for toxins requires careful methods to make sure the results can be trusted.'},
+      {context:`"What they find out about the water makes a big impact."`, prompt:'What can you infer from this line?',
+        options:['The test results affect real decisions about water safety','The test results are ignored','The tests don\'t matter to anyone','The water is always unsafe'], answer:0,
+        explain:'The next paragraph explains the public needs to know if the water is "all right to fish and swim" — showing real impact.'},
+      {context:`"Alan conducts this test over and over"`, prompt:'Why does Alan conduct the test "over and over"?',
+        options:['To make sure the results are accurate and reliable','Because he forgets the results','Because the lab requires wasted effort','Because he is bored'], answer:0,
+        explain:'Repeating the test helps confirm the numbers are consistent and correct, not just a one-time result.'},
+      {context:`"so he can attest that the numbers are exact"`, prompt:'What does this tell you about Alan\'s approach to his work?',
+        options:['He takes pride in being precise and trustworthy in his results','He doesn\'t care about accuracy','He guesses at the numbers','He rushes through his tests'], answer:0,
+        explain:'Wanting to "attest" (confirm) that numbers are "exact" shows Alan values precision and honesty in his results.'},
+      {context:`"This month the water tests are good."`, prompt:'Why does the story mention this specifically?',
+        options:['To show the outcome of all the careful testing described earlier','To say the lab is closing','To introduce a new problem','To describe the weather'], answer:0,
+        explain:'This line reveals the payoff of the whole careful testing process described in the story.'},
+      {context:`"The public will know that the water is all right to fish and swim without any problems."`, prompt:'What does this tell you about the purpose of Alan\'s job?',
+        options:['His work directly protects public safety','His work is only for scientists','His work has no real-world use','His work is a hobby'], answer:0,
+        explain:'Alan\'s testing directly determines whether it\'s safe for the public to use the water — a real public safety role.'},
+      {context:'Think about the whole story.', prompt:'What is the theme of this story?',
+        options:['Work that seems boring on the surface can be meaningful and important','Lab work is always exciting','Testing water is unnecessary','Alan dislikes his job'], answer:0,
+        explain:'The story challenges the assumption that Alan\'s job "must be dull" by showing how meaningful and important it actually is.'},
+      {context:'The story ends focused on public safety rather than Alan.', prompt:'Why might the author end with a focus on public safety rather than Alan himself?',
+        options:['To emphasize the real-world importance and impact of Alan\'s careful work','Because Alan isn\'t important to the story','To introduce a new character','To end on an unrelated topic'], answer:0,
+        explain:'Ending on the public benefit shows why Alan\'s careful, repetitive testing actually matters.'},
+    ]},
+  { id:'vocab', tab:'Vocab', title:"Case File 3 — Vocabulary Clues", icon:'🔍',
+    intro:"Every good detective reads for clues hidden in context. Figure out what each word means the way it's used in the story.",
+    type:'mc', points:10,
+    questions:[
+      {context:`"Everyone thinks Alan's job at the lab must be dull."`, prompt:'What does dull mean here?',
+        options:['Boring, not interesting','Exciting','Dangerous','Easy'], answer:0,
+        explain:'Dull means boring — the assumption the story immediately disproves about Alan\'s job.'},
+      {context:`"Alan relishes this hands-on work."`, prompt:'What does relishes mean here?',
+        options:['Greatly enjoys something','Dislikes something','Ignores something','Fears something'], answer:0,
+        explain:'To relish something means to greatly enjoy it — Alan truly likes his hands-on tasks.'},
+      {context:`"Alan collects gallons of water from wells and ponds."`, prompt:'What does gallons mean here?',
+        options:['A unit for measuring liquid, a large amount','A small drop','A solid object','A type of container shape'], answer:0,
+        explain:'Gallons are a unit for measuring liquid — Alan collects large amounts of water.'},
+      {context:`"to see if any toxins exist"`, prompt:'What does toxins mean here?',
+        options:['Harmful or poisonous substances','Healthy nutrients','Clean minerals','Colors'], answer:0,
+        explain:'Toxins are harmful substances — exactly what the lab is testing the water for.'},
+      {context:`"The lab insists on the best methods"`, prompt:'What does methods mean here?',
+        options:['Ways or processes of doing something','Mistakes','Tools only','Random guesses'], answer:0,
+        explain:'Methods are the specific ways or processes used to carry out the testing.'},
+      {context:`"which are complex"`, prompt:'What does complex mean here?',
+        options:['Complicated, having many parts','Simple','Boring','Fast'], answer:0,
+        explain:'Complex describes something with many parts, like the careful testing methods used at the lab.'},
+      {context:`"he injects the water with a solvent"`, prompt:'What does solvent mean here?',
+        options:['A substance used to dissolve or test other substances','A type of food','A type of container','A type of fish'], answer:0,
+        explain:'A solvent is a substance used in scientific testing, here to help analyze the water.'},
+      {context:`"so he can attest that the numbers are exact"`, prompt:'What does attest mean here?',
+        options:['To confirm or prove something is true','To guess','To deny','To hide'], answer:0,
+        explain:'To attest means to confirm something is true — here, that the numbers are correct.'},
+      {context:`"the numbers are exact"`, prompt:'What does exact mean here?',
+        options:['Completely accurate, precise','Approximate','Wrong','Random'], answer:0,
+        explain:'Exact means completely precise — no rounding or guessing involved.'},
+      {context:`"makes a big impact"`, prompt:'What does impact mean here?',
+        options:['A strong effect or influence','No effect at all','A small unnoticed change','A mistake'], answer:0,
+        explain:'Impact refers to a strong effect — the water test results have a real influence on public safety decisions.'},
+    ]},
+  { id:'spelling', tab:'Spelling', title:"Case File 4 — Spelling Forensics", icon:'✏️',
+    intro:"A detective's notes have to be exact. Listen to each word and spell it correctly to file it as evidence.",
+    type:'spell', points:15,
+    questions:[
+      {word:'inspects', sentence:'The staff inspects the water.'},
+      {word:'conducts', sentence:'Alan conducts this test over and over.'},
+      {word:'toxins', sentence:'The staff checks for toxins.'},
+      {word:'methods', sentence:'The lab insists on the best methods.'},
+      {word:'complex', sentence:'The methods are complex.'},
+      {word:'solvent', sentence:'He injects the water with a solvent.'},
+      {word:'attest', sentence:'He can attest that the numbers are exact.'},
+      {word:'exact', sentence:'The numbers are exact.'},
+      {word:'impact', sentence:'The water tests make a big impact.'},
+      {word:'collects', sentence:'Alan collects gallons of water.'},
+    ]},
+  { id:'structure', tab:'Structure', title:"Case File 5 — Structure Analysis", icon:'🧩',
+    intro:"This story is full of two-syllable words. Mark the syllables and digraphs to crack the code.",
+    type:'mc', points:10,
+    questions:[
+      {context:'inspects', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Inspects breaks into two syllable chunks: in-spects.'},
+      {context:'conducts', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Conducts breaks into two syllable chunks: con-ducts.'},
+      {context:'toxins', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Toxins breaks into two syllable chunks: tox-ins.'},
+      {context:'methods', prompt:'Which letters form the digraph in this word?', options:['me','th','od','ds'], answer:1,
+        explain:'T and h together make one new sound, /th/, in the middle of methods.'},
+      {context:'complex', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Complex breaks into two syllable chunks: com-plex.'},
+      {context:'solvent', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Solvent breaks into two syllable chunks: sol-vent.'},
+      {context:'attest', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Attest breaks into two syllable chunks: at-test.'},
+      {context:'exact', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Exact breaks into two syllable chunks: ex-act.'},
+      {context:'impact', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Impact breaks into two syllable chunks: im-pact.'},
+      {context:'collects', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Collects breaks into two syllable chunks: col-lects.'},
+    ]},
+];
+
+/* =========================================================
+   STORY 13: THE ATLANTIC — WRS Substep 3.4 AB
+   ========================================================= */
+const KEY_TERMS_THE_ATLANTIC = ['day','may','people','our','away','say','today','ocean','these','need','found','remove'];
+const STORY_PARAGRAPHS_THE_ATLANTIC = [
+  `The Atlantic is so big and vast! In fact, it is the second biggest ocean in the world. Most of the Atlantic is cold, but some is in the subtropics and hot! The strong Atlantic winds can affect the lands right next to the water. These winds can also be a problem for transatlantic trips.`,
+  `The Atlantic is not as it was back in the day. In the past, it was the best spot for fishing, but now there are not as many wild fish in the Atlantic. Fish are a common dish, so they are at risk and may vanish. But, there is a fix for this problem - people need to be strict and not overfish.`,
+  `Trash and toxins in the Atlantic are another big problem. The trash and toxins in the water can be found all over the world. Why is this bad? Some Atlantic mammals get very sick from all this rubbish.`,
+  `Also, there are fishing nets that get left in the Atlantic waters. These nets can imprison and kill the mammals and then their numbers drop. It is sad, but we can all help to remove the junk from the water. We can collect our nets and put our trash away. What do you say? Let's all plan to help the fantastic Atlantic today!`,
+];
+const ROUNDS_THE_ATLANTIC = [
+  { id:'sequence', tab:'Timeline', title:"Case File 1 — Timeline Reconstruction", icon:'🗺️',
+    intro:"Drag the evidence into the correct order to rebuild the Atlantic's story.",
+    type:'sequence', points:5,
+    sets:[
+      { label:'First half — put these in order', events:[
+          "The Atlantic is described as the second biggest ocean in the world.",
+          "The story explains the Atlantic used to be the best spot for fishing.",
+          "Now there are not as many wild fish in the Atlantic.",
+          "People are told they need to be strict and not overfish.",
+      ]},
+      { label:'Second half — put these in order', events:[
+          "Trash and toxins in the Atlantic are described as another big problem.",
+          "Some Atlantic mammals get sick from the rubbish.",
+          "Fishing nets left in the water can imprison and kill mammals.",
+          "Readers are asked to help remove the junk from the water.",
+      ]},
+    ]},
+  { id:'inference', tab:'Inference', title:"Case File 2 — Detective Inference", icon:'🧠',
+    intro:"Read between the lines to solve these.",
+    type:'mc', points:12,
+    questions:[
+      {context:`"The Atlantic is so big and vast!"`, prompt:'Why does the author mention this at the start?',
+        options:['To help the reader understand its scale before describing its problems','To say the Atlantic is not important','To confuse the reader','To describe a small pond'], answer:0,
+        explain:'Establishing the ocean\'s huge size first helps the reader appreciate the scale of the problems described afterward.'},
+      {context:`"These winds can also be a problem for transatlantic trips."`, prompt:'What does this line suggest?',
+        options:['The winds are strong enough to make ocean crossings difficult','The winds never affect ships','Transatlantic trips are always easy','The winds only affect land'], answer:0,
+        explain:'Calling the winds "a problem" for crossing trips shows they can genuinely disrupt travel.'},
+      {context:`"now there are not as many wild fish in the Atlantic"`, prompt:'Why is this a problem, based on the story?',
+        options:['Fish populations are declining, likely from overfishing','There are too many fish now','Fish are no longer needed','The ocean is too small for fish'], answer:0,
+        explain:'The story links the decline directly to fishing pressure, right before recommending people "not overfish."'},
+      {context:`"people need to be strict and not overfish"`, prompt:'What does this suggest is needed to fix the fishing problem?',
+        options:['Stronger self-control about how much fish people catch','More boats to catch fish','Bigger fishing nets','No fishing rules at all'], answer:0,
+        explain:'Being "strict" about not overfishing means people need to limit how much they catch.'},
+      {context:`"Some Atlantic mammals get very sick from all this rubbish."`, prompt:'Why might trash and toxins be especially harmful to ocean mammals?',
+        options:['The text says mammals "get very sick" from the rubbish in the water','Mammals are immune to trash','Trash makes mammals stronger','Mammals eat the trash for food'], answer:0,
+        explain:'The text states directly that mammals get sick from the rubbish — trash and toxins are harmful to them.'},
+      {context:`"These nets can imprison and kill the mammals and then their numbers drop."`, prompt:'What can you infer from this line?',
+        options:['Abandoned fishing nets directly cause mammal deaths and population decline','Nets help protect mammals','Mammal populations are increasing','Nets have no effect on mammals'], answer:0,
+        explain:'The cause-and-effect chain — nets imprison/kill mammals, then numbers drop — shows nets are a direct cause of decline.'},
+      {context:`"It is sad, but we can all help to remove the junk from the water."`, prompt:'Why does the author call it "sad" that nets can trap and kill mammals?',
+        options:['To show genuine concern for the harm being caused to ocean life','To end the story on a random note','Because nets are expensive','Because fishing is illegal'], answer:0,
+        explain:'Calling it "sad" reflects real concern for how this harm affects ocean animals.'},
+      {context:`"We can collect our nets and put our trash away."`, prompt:'What solution does the story offer for the trash and net problem?',
+        options:['People collecting their nets and putting trash away instead of leaving it in the ocean','Banning all fishing forever','Building walls around the ocean','Ignoring the problem'], answer:0,
+        explain:'The story offers a simple, practical solution: collecting nets and properly disposing of trash.'},
+      {context:'Think about the whole story.', prompt:'What is the overall theme of this story?',
+        options:['The ocean faces real problems, but people\'s actions can help fix them','The ocean cannot be helped','Fishing should be banned entirely','The Atlantic has no problems'], answer:0,
+        explain:'The story describes real problems (overfishing, trash, nets) alongside real solutions people can take.'},
+      {context:'"Let\'s all plan to help the fantastic Atlantic today!"', prompt:'Why does the story end this way?',
+        options:['To call the reader to take action, ending on a hopeful and motivating note','To end the story sadly','To ask for money','To describe more problems'], answer:0,
+        explain:'This closing call to action leaves the reader motivated to help rather than just informed about problems.'},
+    ]},
+  { id:'vocab', tab:'Vocab', title:"Case File 3 — Vocabulary Clues", icon:'🔍',
+    intro:"Every good detective reads for clues hidden in context. Figure out what each word means the way it's used in the story.",
+    type:'mc', points:10,
+    questions:[
+      {context:`"The Atlantic is so big and vast!"`, prompt:'What does vast mean here?',
+        options:['Extremely large in area','Extremely small','Average-sized','Narrow'], answer:0,
+        explain:'Vast means extremely large — fitting a description right after calling the Atlantic "so big."'},
+      {context:`"some is in the subtropics and hot!"`, prompt:'What does subtropics mean here?',
+        options:['Regions near the tropics with warm climates','The coldest regions on Earth','Mountain regions only','Desert regions only'], answer:0,
+        explain:'Subtropics refers to warm regions near the tropics, explaining why some of the Atlantic is hot.'},
+      {context:`"a problem for transatlantic trips"`, prompt:'What does transatlantic mean here?',
+        options:['Crossing or spanning the Atlantic Ocean','Staying within one country','Underwater only','Only by air'], answer:0,
+        explain:'Transatlantic describes travel that crosses the Atlantic Ocean, like a ship voyage.'},
+      {context:`"they are at risk and may vanish"`, prompt:'What does vanish mean here?',
+        options:['To disappear completely','To grow larger','To multiply quickly','To change color'], answer:0,
+        explain:'Vanish means to disappear entirely — the risk facing fish populations if overfishing continues.'},
+      {context:`"people need to be strict and not overfish"`, prompt:'What does overfish mean here?',
+        options:['To catch too many fish, more than is sustainable','To protect fish','To study fish','To release fish'], answer:0,
+        explain:'Overfishing means catching more fish than the population can sustain.'},
+      {context:`"These nets can imprison and kill the mammals"`, prompt:'What does imprison mean here?',
+        options:['To trap or hold captive','To free','To feed','To count'], answer:0,
+        explain:'Imprison means to trap something, holding it captive — exactly what nets do to trapped mammals.'},
+      {context:`"Some Atlantic mammals get very sick"`, prompt:'What does mammals mean here?',
+        options:['Warm-blooded animals with fur or hair, like dolphins or whales','Fish with scales','Plants','Rocks'], answer:0,
+        explain:'Mammals are warm-blooded animals like dolphins and whales that live in the Atlantic.'},
+      {context:`"get very sick from all this rubbish"`, prompt:'What does rubbish mean here?',
+        options:['Trash or garbage','Clean fresh water','Healthy food','Safe shelter'], answer:0,
+        explain:'Rubbish is another word for trash or garbage, harmful to ocean mammals.'},
+      {context:`"help the fantastic Atlantic today!"`, prompt:'What does fantastic mean here?',
+        options:['Wonderful, amazing','Terrible','Boring','Average'], answer:0,
+        explain:'Fantastic means wonderful — the author\'s positive feeling toward the Atlantic despite its problems.'},
+      {context:`"people need to be strict and not overfish"`, prompt:'What does strict mean here?',
+        options:['Firm and careful about following rules','Relaxed and careless','Confused','Generous'], answer:0,
+        explain:'Being strict means being firm about following limits, here about how much fish to catch.'},
+    ]},
+  { id:'spelling', tab:'Spelling', title:"Case File 4 — Spelling Forensics", icon:'✏️',
+    intro:"A detective's notes have to be exact. Listen to each word and spell it correctly to file it as evidence.",
+    type:'spell', points:15,
+    questions:[
+      {word:'Atlantic', sentence:'The Atlantic is so big and vast.'},
+      {word:'subtropics', sentence:'Some of the Atlantic is in the subtropics.'},
+      {word:'vanish', sentence:'The fish are at risk and may vanish.'},
+      {word:'overfish', sentence:'People need to be strict and not overfish.'},
+      {word:'mammals', sentence:'Some Atlantic mammals get very sick.'},
+      {word:'imprison', sentence:'These nets can imprison the mammals.'},
+      {word:'fantastic', sentence:'Let\'s help the fantastic Atlantic today.'},
+      {word:'rubbish', sentence:'Mammals get sick from all this rubbish.'},
+      {word:'remove', sentence:'We can all help to remove the junk.'},
+      {word:'strict', sentence:'People need to be strict and not overfish.'},
+    ]},
+  { id:'structure', tab:'Structure', title:"Case File 5 — Structure Analysis", icon:'🧩',
+    intro:"This story is full of welded chunks and multisyllabic words. Mark them to crack the code.",
+    type:'mc', points:10,
+    questions:[
+      {context:'Atlantic', prompt:'Which letters form the welded chunk in this word?', options:['at','an','ic','la'], answer:1,
+        explain:'"An" is a welded sound taught as one unit — you can hear it stay together in Atlantic.'},
+      {context:'vanish', prompt:'Which letters form the welded chunk in this word?', options:['va','an','is','sh'], answer:1,
+        explain:'"An" is a welded sound taught as one unit — you can hear it stay together in vanish.'},
+      {context:'mammals', prompt:'Which letters form the welded chunk in this word?', options:['ma','am','al','ls'], answer:1,
+        explain:'"Am" is a welded sound taught as one unit — you can hear it stay together in mammals.'},
+      {context:'fantastic', prompt:'Which letters form the welded chunk in this word?', options:['fa','an','ta','ic'], answer:1,
+        explain:'"An" is a welded sound taught as one unit — you can hear it stay together in fantastic.'},
+      {context:'vanish', prompt:'Which letters form the ending digraph?', options:['va','ni','is','sh'], answer:3,
+        explain:'S and h together make one new sound, /sh/, at the end of vanish.'},
+      {context:'overfish', prompt:'Which letters form the ending digraph?', options:['ov','er','fi','sh'], answer:3,
+        explain:'S and h together make one new sound, /sh/, at the end of overfish.'},
+      {context:'rubbish', prompt:'Which letters form the ending digraph?', options:['ru','bi','sh','bb'], answer:2,
+        explain:'S and h together make one new sound, /sh/, at the end of rubbish.'},
+      {context:'subtropics', prompt:'How many syllables does this word have?', options:['2','3','4','5'], answer:1,
+        explain:'Subtropics breaks into three syllable chunks: sub-trop-ics.'},
+      {context:'imprison', prompt:'How many syllables does this word have?', options:['2','3','4','5'], answer:1,
+        explain:'Imprison breaks into three syllable chunks: im-pris-on.'},
+      {context:'transatlantic', prompt:'How many syllables does this word have?', options:['2','3','4','5'], answer:2,
+        explain:'Transatlantic breaks into four syllable chunks: trans-at-lan-tic.'},
+    ]},
+];
+
+/* =========================================================
+   STORY 14: THE FOSSIL EXHIBIT — WRS Substep 3.4 B
+   ========================================================= */
+const KEY_TERMS_FOSSIL_EXHIBIT = ['day','way','hour','away','people','take','through','took','time','makes','show','goes'];
+const STORY_PARAGRAPHS_FOSSIL_EXHIBIT = [
+  `Ingrid has a splendid plan for the day. She has had this plan for a month now. She is on her way to visit the fossil exhibit in Wilmington. She is ecstatic about it, and cannot get the grin off her lips!`,
+  `Ingrid will be the first one at the exhibit. Ingrid knew it would take over an hour to walk through the exhibit. So, she took the day off from work. Her boss, the congressman, did not get mad or admonish her one bit. He was glad to let Ingrid have some time off from her job.`,
+  `The exhibit is just a quick walk away. When Ingrid gets there, she is not the first. The exhibit hall is full of people! She gets pushed and pulled a lot, but she is not upset or indignant at all. She makes her way to the new kinesthetic fossil exhibit where she can put her hands on the exotic rocks and shells. It is fantastic!`,
+  `After she witnesses everything in the fossil show, she goes to another exhibit which is about the lost land of Atlantis. To finish up the day, Ingrid has lunch on a bench in the common. There are snapdragons everywhere! When she gets back to her job the next day, she is quick to recommend the exhibit to all her pals and her boss.`,
+];
+const ROUNDS_FOSSIL_EXHIBIT = [
+  { id:'sequence', tab:'Timeline', title:"Case File 1 — Timeline Reconstruction", icon:'🗺️',
+    intro:"Drag the evidence into the correct order to rebuild Ingrid's day.",
+    type:'sequence', points:5,
+    sets:[
+      { label:'First half — put these in order', events:[
+          "Ingrid has had a splendid plan for a month: visiting the fossil exhibit.",
+          "Ingrid takes the day off work to go to the exhibit.",
+          "Ingrid expects to be the first one at the exhibit.",
+          "When she arrives, the exhibit hall is already full of people.",
+      ]},
+      { label:'Second half — put these in order', events:[
+          "Ingrid explores the kinesthetic fossil exhibit and touches exotic rocks and shells.",
+          "Ingrid visits the exhibit about the lost land of Atlantis.",
+          "Ingrid has lunch on a bench surrounded by snapdragons.",
+          "The next day, Ingrid recommends the exhibit to her pals and boss.",
+      ]},
+    ]},
+  { id:'inference', tab:'Inference', title:"Case File 2 — Detective Inference", icon:'🧠',
+    intro:"Read between the lines to solve these.",
+    type:'mc', points:12,
+    questions:[
+      {context:`"She has had this plan for a month now."`, prompt:'Why does the story mention Ingrid has had this plan for a month?',
+        options:['To show how long she has been looking forward to this visit','To say she forgot about it','To show she planned poorly','To confuse the reader'], answer:0,
+        explain:'A month of planning shows Ingrid has genuinely been anticipating this trip for a long time.'},
+      {context:`"She is ecstatic about it, and cannot get the grin off her lips!"`, prompt:'What does this suggest about Ingrid\'s feelings?',
+        options:['She is extremely excited and happy','She is nervous and worried','She is bored','She is confused'], answer:0,
+        explain:'Being "ecstatic" and having a grin she "cannot get off her lips" shows intense excitement and happiness.'},
+      {context:`"So, she took the day off from work."`, prompt:'Why did Ingrid take the whole day off work?',
+        options:['She knew the exhibit would take over an hour and wanted plenty of time','She was fired','She didn\'t like her job','She was forced to'], answer:0,
+        explain:'The text explains it would "take over an hour to walk through the exhibit," so she wanted the full day free.'},
+      {context:`"did not get mad or admonish her one bit"`, prompt:'What can you infer about Ingrid\'s boss from this line?',
+        options:['He is understanding and supportive of her taking time off','He is angry with her','He fired her','He didn\'t notice she was gone'], answer:0,
+        explain:'Not getting mad and being "glad to let Ingrid have some time off" shows a supportive, understanding boss.'},
+      {context:`"When Ingrid gets there, she is not the first."`, prompt:'Why was Ingrid surprised she wasn\'t the first one at the exhibit?',
+        options:['She had planned to arrive early, but the hall was already full','She arrived very late','She didn\'t want to be first','The exhibit was closed'], answer:0,
+        explain:'The story earlier said "Ingrid will be the first one at the exhibit" — so arriving to a full hall was unexpected.'},
+      {context:`"she is not upset or indignant at all"`, prompt:'What does this suggest about Ingrid\'s mood despite being pushed and pulled?',
+        options:['She is so happy about the exhibit that minor annoyances don\'t bother her','She is secretly furious','She wants to leave immediately','She didn\'t notice the crowd'], answer:0,
+        explain:'Even being pushed and pulled doesn\'t upset her — her excitement about the exhibit outweighs any annoyance.'},
+      {context:`"the new kinesthetic fossil exhibit where she can put her hands on the exotic rocks and shells"`, prompt:'Why might this exhibit have been especially exciting for Ingrid?',
+        options:['It let her physically touch and interact with the exhibits, not just look','It was the only exhibit open','It was free','It was closest to the exit'], answer:0,
+        explain:'"Kinesthetic" means hands-on — letting Ingrid touch the rocks and shells rather than just view them from behind glass.'},
+      {context:`"she is quick to recommend the exhibit to all her pals and her boss"`, prompt:'What does this suggest about her overall experience?',
+        options:['She had such a great experience that she wanted to share it with others','She was disappointed by the exhibit','She wants to complain about it','She forgot about the exhibit already'], answer:0,
+        explain:'Being quick to recommend it to others shows the visit left a strong, positive impression.'},
+      {context:'Think about the whole story.', prompt:'What is the theme of this story?',
+        options:['Looking forward to and fully enjoying an experience you\'re passionate about','Museums are always crowded','Work is more important than hobbies','Planning trips is stressful'], answer:0,
+        explain:'From a month of anticipation to genuine enjoyment despite crowds, the story centers on Ingrid\'s passion for the exhibit.'},
+      {context:'The story ends with Ingrid recommending the exhibit rather than at the exhibit itself.', prompt:'Why might the author end the story this way?',
+        options:['To show the lasting positive impact the visit had on her, beyond just that day','To show she regretted going','To introduce a new character','To end the story abruptly'], answer:0,
+        explain:'Showing her recommending it the next day proves the experience mattered to her well beyond the day itself.'},
+    ]},
+  { id:'vocab', tab:'Vocab', title:"Case File 3 — Vocabulary Clues", icon:'🔍',
+    intro:"Every good detective reads for clues hidden in context. Figure out what each word means the way it's used in the story.",
+    type:'mc', points:10,
+    questions:[
+      {context:`"Ingrid has a splendid plan for the day."`, prompt:'What does splendid mean here?',
+        options:['Wonderful, excellent','Terrible','Boring','Ordinary'], answer:0,
+        explain:'Splendid means wonderful or excellent — fitting Ingrid\'s exciting plan.'},
+      {context:`"She is ecstatic about it"`, prompt:'What does ecstatic mean here?',
+        options:['Extremely happy and excited','Extremely sad','Calm and neutral','Angry'], answer:0,
+        explain:'Ecstatic means extremely happy and excited, matching the grin she can\'t get off her face.'},
+      {context:`"visit the fossil exhibit in Wilmington"`, prompt:'What does exhibit mean here?',
+        options:['A public display of objects, like at a museum','A private collection','A type of book','A restaurant'], answer:0,
+        explain:'An exhibit is a public display, often at a museum, of objects like fossils.'},
+      {context:`"did not get mad or admonish her one bit"`, prompt:'What does admonish mean here?',
+        options:['To scold or criticize firmly','To praise warmly','To ignore completely','To reward'], answer:0,
+        explain:'To admonish means to scold or criticize — something the boss did NOT do to Ingrid.'},
+      {context:`"she is not upset or indignant at all"`, prompt:'What does indignant mean here?',
+        options:['Feeling angry because something seems unfair','Feeling calm and accepting','Feeling sleepy','Feeling hungry'], answer:0,
+        explain:'Indignant means feeling angry about unfair treatment — something Ingrid does not feel despite being jostled.'},
+      {context:`"the new kinesthetic fossil exhibit"`, prompt:'What does kinesthetic mean here?',
+        options:['Involving hands-on movement and touch','Only looking','Only listening','Only reading'], answer:0,
+        explain:'Kinesthetic describes learning or experiencing through touch and movement, not just observation.'},
+      {context:`"put her hands on the exotic rocks and shells"`, prompt:'What does exotic mean here?',
+        options:['Unusual or from a faraway place','Common and ordinary','Broken','Expensive only'], answer:0,
+        explain:'Exotic describes something unusual, often from far away — fitting for special fossil exhibit rocks and shells.'},
+      {context:`"Her boss, the congressman"`, prompt:'What does congressman mean here?',
+        options:['An elected member of a legislature','A type of teacher','A museum worker','A type of doctor'], answer:0,
+        explain:'A congressman is an elected government official — Ingrid\'s boss.'},
+      {context:`"There are snapdragons everywhere!"`, prompt:'What does snapdragons mean here?',
+        options:['A type of flowering plant','A type of rock','A type of insect','A type of fossil'], answer:0,
+        explain:'Snapdragons are a type of flower, fitting the description of Ingrid\'s lunch spot in the common.'},
+      {context:`"she is quick to recommend the exhibit"`, prompt:'What does recommend mean here?',
+        options:['To suggest something as being good or worthwhile','To criticize something','To forget about something','To hide something'], answer:0,
+        explain:'To recommend means to suggest something is good — Ingrid tells her pals and boss the exhibit is worth visiting.'},
+    ]},
+  { id:'spelling', tab:'Spelling', title:"Case File 4 — Spelling Forensics", icon:'✏️',
+    intro:"A detective's notes have to be exact. Listen to each word and spell it correctly to file it as evidence.",
+    type:'spell', points:15,
+    questions:[
+      {word:'splendid', sentence:'Ingrid has a splendid plan for the day.'},
+      {word:'ecstatic', sentence:'She is ecstatic about the exhibit.'},
+      {word:'exhibit', sentence:'She is on her way to the fossil exhibit.'},
+      {word:'admonish', sentence:'Her boss did not admonish her.'},
+      {word:'indignant', sentence:'She is not upset or indignant at all.'},
+      {word:'exotic', sentence:'She can touch the exotic rocks and shells.'},
+      {word:'fantastic', sentence:'It is fantastic!'},
+      {word:'snapdragons', sentence:'There are snapdragons everywhere.'},
+      {word:'recommend', sentence:'She is quick to recommend the exhibit.'},
+      {word:'congressman', sentence:'Her boss, the congressman, was glad to help.'},
+    ]},
+  { id:'structure', tab:'Structure', title:"Case File 5 — Structure Analysis", icon:'🧩',
+    intro:"This story is full of multisyllabic words and welded chunks. Mark them to crack the code.",
+    type:'mc', points:10,
+    questions:[
+      {context:'splendid', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Splendid breaks into two syllable chunks: splen-did.'},
+      {context:'ecstatic', prompt:'How many syllables does this word have?', options:['2','3','4','5'], answer:1,
+        explain:'Ecstatic breaks into three syllable chunks: ec-stat-ic.'},
+      {context:'exhibit', prompt:'How many syllables does this word have?', options:['2','3','4','5'], answer:1,
+        explain:'Exhibit breaks into three syllable chunks: ex-hib-it.'},
+      {context:'admonish', prompt:'Which letters form the ending digraph?', options:['ad','mo','nish','sh'], answer:3,
+        explain:'S and h together make one new sound, /sh/, at the end of admonish.'},
+      {context:'indignant', prompt:'Which letters form the welded chunk in this word?', options:['in','dig','an','nt'], answer:2,
+        explain:'"An" is a welded sound taught as one unit — you can hear it stay together in indignant.'},
+      {context:'fantastic', prompt:'Which letters form the welded chunk in this word?', options:['fa','an','ta','ic'], answer:1,
+        explain:'"An" is a welded sound taught as one unit — you can hear it stay together in fantastic.'},
+      {context:'congressman', prompt:'Which letters form the welded chunk in this word?', options:['con','gress','man','an'], answer:3,
+        explain:'"An" is a welded sound taught as one unit — you can hear it stay together in congressman.'},
+      {context:'exotic', prompt:'How many syllables does this word have?', options:['2','3','4','5'], answer:1,
+        explain:'Exotic breaks into three syllable chunks: ex-ot-ic.'},
+      {context:'recommend', prompt:'How many syllables does this word have?', options:['2','3','4','5'], answer:1,
+        explain:'Recommend breaks into three syllable chunks: rec-om-mend.'},
+      {context:'snapdragons', prompt:'How many syllables does this word have?', options:['2','3','4','5'], answer:1,
+        explain:'Snapdragons breaks into three syllable chunks: snap-drag-ons.'},
+    ]},
+];
+
+/* =========================================================
+   STORY 15: WALKING AND TALKING — WRS Substep 3.5 AB
+   ========================================================= */
+const KEY_TERMS_WALKING_TALKING = ['friend(s)','often','called','great','school','time'];
+const STORY_PARAGRAPHS_WALKING_TALKING = [
+  `Angus and Jazmin could get on the bus to go to school, but they insist on walking every day. They are best friends, and they both want to walk and talk.`,
+  `Each day their chat is on a new topic. They often talk about their classes, but today, Jazmin asks Angus to tell her about his plans for when school gets out. Angus jumps right into this subject. He tells Jazmin that he wants to spend each day hunting for frogs down by the pond and golfing with his dad.`,
+  `Jazmin then tells her friend that she plans on attending an acting class. She wants to be cast in a film someday. Her mom called last month to get her on the acting class list. Angus thinks this is a great plan. Jazmin could be a talented actress.`,
+  `In no time at all, they have landed at the front of the school. It's time to end their chat and get to work on their math and other subjects.`,
+];
+const ROUNDS_WALKING_TALKING = [
+  { id:'sequence', tab:'Timeline', title:"Case File 1 — Timeline Reconstruction", icon:'🗺️',
+    intro:"Drag the evidence into the correct order to rebuild Angus and Jazmin's walk.",
+    type:'sequence', points:5,
+    sets:[
+      { label:'First half — put these in order', events:[
+          "Angus and Jazmin walk to school together every day instead of taking the bus.",
+          "Jazmin asks Angus about his plans for after school gets out.",
+          "Angus says he wants to hunt for frogs and golf with his dad.",
+          "Jazmin tells Angus about her plan to attend an acting class.",
+      ]},
+      { label:'Second half — put these in order', events:[
+          "Jazmin explains she wants to be cast in a film someday.",
+          "Angus says he thinks Jazmin's plan is great.",
+          "Angus and Jazmin arrive at the front of the school.",
+          "They end their chat and get to work on math and other subjects.",
+      ]},
+    ]},
+  { id:'inference', tab:'Inference', title:"Case File 2 — Detective Inference", icon:'🧠',
+    intro:"Read between the lines to solve these.",
+    type:'mc', points:12,
+    questions:[
+      {context:`"they insist on walking every day"`, prompt:'Why do Angus and Jazmin insist on walking every day instead of taking the bus?',
+        options:['They value the chance to walk and talk together as best friends','They aren\'t allowed on the bus','It is faster than the bus','They don\'t like other kids'], answer:0,
+        explain:'The text says they "both want to walk and talk" — the walk itself is valuable time for their friendship.'},
+      {context:`"Each day their chat is on a new topic."`, prompt:'What does this suggest about their friendship?',
+        options:['They have a lot to talk about and enjoy varied conversations','They run out of things to say quickly','They only discuss school','They argue every day'], answer:0,
+        explain:'A "new topic" every day shows their conversations are varied and never seem to run dry.'},
+      {context:`"Angus jumps right into this subject."`, prompt:'Why does Angus "jump right into this subject" when asked about his plans?',
+        options:['He is eager and excited to share his after-school plans','He is annoyed by the question','He doesn\'t want to answer','He forgot the question'], answer:0,
+        explain:'Jumping right in shows enthusiasm — Angus is excited to talk about his plans.'},
+      {context:`"hunting for frogs down by the pond and golfing with his dad"`, prompt:'What can you infer about Angus\'s interests from his plans?',
+        options:['He enjoys outdoor activities and spending time with his dad','He prefers to stay indoors','He doesn\'t like his dad','He dislikes nature'], answer:0,
+        explain:'Frog hunting and golfing are both outdoor activities, and golfing with his dad shows he values that time together.'},
+      {context:`"Her mom called last month to get her on the acting class list."`, prompt:'Why did Jazmin\'s mom call "last month" to get her on the list?',
+        options:['To make sure Jazmin had a spot, suggesting the class fills up quickly','Because Jazmin forgot to sign up','Because the class was free that month only','Because the school required it'], answer:0,
+        explain:'Calling a month ahead suggests planning ahead was necessary, likely because spots fill up.'},
+      {context:`"Angus thinks this is a great plan."`, prompt:'What does this tell you about how Angus supports Jazmin?',
+        options:['He is encouraging and supportive of his friend\'s goals','He is jealous of her plan','He thinks her plan will fail','He is indifferent to her plans'], answer:0,
+        explain:'Calling her plan "great" shows genuine encouragement and support for his friend\'s goal.'},
+      {context:'Think about the two very different plans.', prompt:'Why does the author include both friends\' very different plans (frogs/golf vs. acting class)?',
+        options:['To show how different their interests are, even though they\'re best friends','To show they don\'t get along','To confuse the reader','To criticize one of their plans'], answer:0,
+        explain:'Showing very different interests highlights that close friendships don\'t require identical interests.'},
+      {context:`"In no time at all, they have landed at the front of the school."`, prompt:'What does this suggest about their walk?',
+        options:['The walk felt quick because they were absorbed in conversation','The walk was actually very short in distance','They ran the whole way','They took a long detour'], answer:0,
+        explain:'"In no time at all" suggests the walk felt fast because they were engaged in conversation, not literally about distance.'},
+      {context:'Think about the whole story.', prompt:'What is the theme of this story?',
+        options:['Good friendships involve sharing interests and supporting each other\'s goals, even when different','Friends should always have identical interests','Walking to school is dangerous','School is more important than friendship'], answer:0,
+        explain:'Angus and Jazmin support each other\'s very different goals — a picture of a strong, accepting friendship.'},
+      {context:'"It\'s time to end their chat and get to work on their math and other subjects."', prompt:'Why does the story end with them switching to "math and other subjects"?',
+        options:['To show their walking-and-talking time is over and school routine begins','To say they will fail their classes','To show they are bored with school','To end the story unrelated to the walk'], answer:0,
+        explain:'This transition marks the natural end of their walk-and-talk time as the school day begins.'},
+    ]},
+  { id:'vocab', tab:'Vocab', title:"Case File 3 — Vocabulary Clues", icon:'🔍',
+    intro:"Every good detective reads for clues hidden in context. Figure out what each word means the way it's used in the story.",
+    type:'mc', points:10,
+    questions:[
+      {context:`"they insist on walking every day"`, prompt:'What does insist mean here?',
+        options:['To firmly stick with a decision or demand','To give up easily','To forget about something','To ask a question'], answer:0,
+        explain:'Insisting means firmly sticking with a choice — here, choosing to walk instead of taking the bus.'},
+      {context:`"Each day their chat is on a new topic."`, prompt:'What does topic mean here?',
+        options:['The subject being discussed','A type of homework','A type of game','A location'], answer:0,
+        explain:'A topic is the subject of a conversation — what they talk about each day.'},
+      {context:`"get to work on their math and other subjects"`, prompt:'What does subjects mean here?',
+        options:['Areas of study, like school classes','A type of lunch','A type of friend','A location'], answer:0,
+        explain:'Subjects refers to school classes or areas of study, like math.'},
+      {context:`"Angus jumps right into this subject."`, prompt:'What does jumps right into mean here?',
+        options:['Begins talking about something eagerly and without hesitation','Avoids the topic','Changes the subject','Refuses to answer'], answer:0,
+        explain:'"Jumps right into" describes eagerly beginning to talk about something without delay.'},
+      {context:`"she plans on attending an acting class"`, prompt:'What does attending mean here?',
+        options:['Going to or being present at','Skipping','Teaching','Canceling'], answer:0,
+        explain:'Attending a class means going to it and being present.'},
+      {context:`"She wants to be cast in a film someday."`, prompt:'What does cast mean here?',
+        options:['Chosen for a role in a performance','The director of something','A viewer of something','A writer of something'], answer:0,
+        explain:'Being "cast" in a film means being chosen to play a role in it.'},
+      {context:`"Jazmin could be a talented actress."`, prompt:'What does talented mean here?',
+        options:['Having a natural skill or ability','Having no skill at all','Being unwilling to try','Being too busy'], answer:0,
+        explain:'Talented describes having a natural ability — here, for acting.'},
+      {context:`"they have landed at the front of the school"`, prompt:'What does landed mean here?',
+        options:['Arrived at a place','Left a place','Gotten lost','Waited outside'], answer:0,
+        explain:'Landed here means arrived — they\'ve reached the front of the school.'},
+      {context:`"golfing with his dad"`, prompt:'What does golfing mean here?',
+        options:['Playing the sport of golf','Playing basketball','Fishing','Reading'], answer:0,
+        explain:'Golfing means playing the sport of golf, one of Angus\'s after-school plans.'},
+      {context:`"hunting for frogs down by the pond"`, prompt:'What does hunting mean here?',
+        options:['Searching for or trying to find something','Feeding something','Ignoring something','Painting something'], answer:0,
+        explain:'Hunting means searching for something — here, looking for frogs by the pond.'},
+    ]},
+  { id:'spelling', tab:'Spelling', title:"Case File 4 — Spelling Forensics", icon:'✏️',
+    intro:"A detective's notes have to be exact. Listen to each word and spell it correctly to file it as evidence.",
+    type:'spell', points:15,
+    questions:[
+      {word:'walking', sentence:'They insist on walking every day.'},
+      {word:'talking', sentence:'They both want to walk and talk.'},
+      {word:'hunting', sentence:'He wants to spend each day hunting for frogs.'},
+      {word:'golfing', sentence:'He wants to spend each day golfing with his dad.'},
+      {word:'attending', sentence:'She plans on attending an acting class.'},
+      {word:'called', sentence:'Her mom called last month.'},
+      {word:'landed', sentence:'They have landed at the front of the school.'},
+      {word:'talented', sentence:'Jazmin could be a talented actress.'},
+      {word:'insist', sentence:'They insist on walking every day.'},
+      {word:'subject', sentence:'Angus jumps right into this subject.'},
+    ]},
+  { id:'structure', tab:'Structure', title:"Case File 5 — Structure Analysis", icon:'🧩',
+    intro:"This story adds -ing to basewords. Mark the welded ing chunks to crack the code.",
+    type:'mc', points:10,
+    questions:[
+      {context:'walking', prompt:'Which letters form the welded chunk at the end?', options:['wa','al','ki','ing'], answer:3,
+        explain:'"Ing" is a welded sound taught as one unit — it gets added onto the baseword "walk."'},
+      {context:'talking', prompt:'Which letters form the welded chunk at the end?', options:['ta','al','ki','ing'], answer:3,
+        explain:'"Ing" is a welded sound taught as one unit — it gets added onto the baseword "talk."'},
+      {context:'hunting', prompt:'Which letters form the welded chunk at the end?', options:['hu','un','ti','ing'], answer:3,
+        explain:'"Ing" is a welded sound taught as one unit — it gets added onto the baseword "hunt."'},
+      {context:'golfing', prompt:'Which letters form the welded chunk at the end?', options:['go','ol','fi','ing'], answer:3,
+        explain:'"Ing" is a welded sound taught as one unit — it gets added onto the baseword "golf."'},
+      {context:'attending', prompt:'Which letters form the welded chunk at the end?', options:['at','te','nd','ing'], answer:3,
+        explain:'"Ing" is a welded sound taught as one unit — it gets added onto the baseword "attend."'},
+      {context:'called', prompt:'Which letters form the welded chunk in this word?', options:['ca','all','le','ed'], answer:1,
+        explain:'"All" is a welded sound taught as one unit — you can hear it stay together in called.'},
+      {context:'landed', prompt:'Which letters form the welded chunk in this word?', options:['la','an','de','ed'], answer:1,
+        explain:'"An" is a welded sound taught as one unit — you can hear it stay together in landed.'},
+      {context:'talented', prompt:'How many syllables does this word have?', options:['2','3','4','5'], answer:1,
+        explain:'Talented breaks into three syllable chunks: tal-ent-ed.'},
+      {context:'insist', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Insist breaks into two syllable chunks: in-sist.'},
+      {context:'subject', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
+        explain:'Subject breaks into two syllable chunks: sub-ject.'},
+    ]},
+];
+
+/* =========================================================
+   STORY 16: PASSING A BILL — WRS Substep 3.5 B
+   ========================================================= */
+const KEY_TERMS_PASSING_BILL = ['often','throughout','called','great','through','starts','time','see','vote'];
+const STORY_PARAGRAPHS_PASSING_BILL = [
+  `Passing a bill in Congress is very complex. There are a number of steps, and every aspect of a bill is inspected. Hundreds of people work to help with the passing of just one bill.`,
+  `Congress starts by collecting all the facts and then editing the text. They spend a lot of time checking the cost and discussing what is intended with each new bill. Often, the talk can go on throughout many months. Then, it is put into a transcript, publishing it for the press and the public to see.`,
+  `At long last, a bill can be called up for a vote. Everyone in Congress can now cast their ballot. If most of them think it is great and say yes, then the bill will pass through.`,
+];
+const ROUNDS_PASSING_BILL = [
+  { id:'sequence', tab:'Timeline', title:"Case File 1 — Timeline Reconstruction", icon:'🗺️',
+    intro:"Drag the evidence into the correct order to rebuild how a bill passes.",
+    type:'sequence', points:5,
+    sets:[
+      { label:'First half — put these in order', events:[
+          "Congress starts by collecting all the facts about a bill.",
+          "Congress spends time editing the text and checking the cost.",
+          "Congress discusses what each new bill is intended to do.",
+          "Talk about a bill can go on for months before it's finished.",
+      ]},
+      { label:'Second half — put these in order', events:[
+          "The bill is put into a transcript for the press and public to see.",
+          "A bill can be called up for a vote.",
+          "Everyone in Congress casts their ballot.",
+          "If most vote yes, the bill passes through.",
+      ]},
+    ]},
+  { id:'inference', tab:'Inference', title:"Case File 2 — Detective Inference", icon:'🧠',
+    intro:"Read between the lines to solve these.",
+    type:'mc', points:12,
+    questions:[
+      {context:`"Passing a bill in Congress is very complex."`, prompt:'Why does the story say this at the start?',
+        options:['To prepare the reader for the many detailed steps described afterward','To say passing a bill is easy','To describe a different topic','To confuse the reader'], answer:0,
+        explain:'Calling the process "very complex" sets up the reader for the detailed multi-step process described next.'},
+      {context:`"Hundreds of people work to help with the passing of just one bill."`, prompt:'What does this suggest about the process?',
+        options:['It takes a huge collaborative effort, not just a few people','Only one person is needed','The process is quick','Most people are not involved'], answer:0,
+        explain:'"Hundreds of people" for "just one bill" emphasizes how much collaboration is required.'},
+      {context:`"every aspect of a bill is inspected"`, prompt:'Why is every aspect of a bill inspected?',
+        options:['To make sure the bill is carefully checked before it becomes a law','Because inspections are required for fun','To slow down the process on purpose','Because bills are usually wrong'], answer:0,
+        explain:'Careful inspection ensures the bill is correct and ready before it can become law.'},
+      {context:`"the talk can go on throughout many months"`, prompt:'What can you infer from this line?',
+        options:['Reaching agreement on a bill can take a very long time','Bills are decided in one day','Talking about a bill is unnecessary','Every bill takes exactly one month'], answer:0,
+        explain:'"Many months" of ongoing talk shows this process can take a long time to complete.'},
+      {context:`"it is put into a transcript, publishing it for the press and the public to see"`, prompt:'Why is the bill published for the public to see?',
+        options:['So that the press and citizens have access to what\'s being proposed and discussed','To keep it secret from most people','Because it\'s required by tradition only','To confuse readers'], answer:0,
+        explain:'Publishing the transcript makes the process transparent to the press and public.'},
+      {context:`"At long last, a bill can be called up for a vote."`, prompt:'What does this suggest about the earlier steps?',
+        options:['The discussion and editing steps must be finished before voting can happen','Voting happens before any discussion','The vote happens randomly','Anyone can vote at any time'], answer:0,
+        explain:'"At long last" signals the vote is the final step, coming only after all the earlier work is done.'},
+      {context:`"If most of them think it is great and say yes"`, prompt:'Why does the outcome depend on "most of them" rather than everyone?',
+        options:['A bill doesn\'t need unanimous support, just a majority to pass','Every single member must agree','Only the boss decides','No votes are actually counted'], answer:0,
+        explain:'"Most of them" indicates a majority vote is needed, not agreement from every single member.'},
+      {context:`"Everyone in Congress can now cast their ballot."`, prompt:'What can you infer about the purpose of a ballot from this line?',
+        options:['It\'s the formal way each member\'s decision is officially counted','It\'s just a suggestion box','It has no real effect','It\'s only symbolic'], answer:0,
+        explain:'Casting a ballot is how each member\'s vote is formally recorded and counted toward the outcome.'},
+      {context:'Think about the whole story.', prompt:'What is the theme of this story?',
+        options:['Passing a law is a long, careful, and collaborative process','Laws are passed instantly','Only one person decides on laws','Voting doesn\'t matter'], answer:0,
+        explain:'From collecting facts to the final vote, the story emphasizes how careful and collaborative this process is.'},
+      {context:'The story ends right at the vote.', prompt:'Why might the author end the story right at the vote rather than describing what happens after a bill passes?',
+        options:['To focus specifically on explaining the passing process itself, which was the story\'s purpose','Because nothing else happens after a vote','Because the author ran out of ideas','To confuse the reader'], answer:0,
+        explain:'The story\'s purpose was explaining how a bill passes, so ending right at the vote completes that explanation.'},
+    ]},
+  { id:'vocab', tab:'Vocab', title:"Case File 3 — Vocabulary Clues", icon:'🔍',
+    intro:"Every good detective reads for clues hidden in context. Figure out what each word means the way it's used in the story.",
+    type:'mc', points:10,
+    questions:[
+      {context:`"Passing a bill in Congress is very complex."`, prompt:'What does complex mean here?',
+        options:['Complicated, having many parts','Simple','Quick','Boring'], answer:0,
+        explain:'Complex describes something with many parts — fitting the many steps described in passing a bill.'},
+      {context:`"every aspect of a bill is inspected"`, prompt:'What does aspect mean here?',
+        options:['A particular part or feature of something','The whole thing at once','A mistake','A summary'], answer:0,
+        explain:'An aspect is one particular part of something — every part of the bill gets checked.'},
+      {context:`"every aspect of a bill is inspected"`, prompt:'What does inspected mean here?',
+        options:['Carefully examined or checked','Ignored','Guessed at','Thrown away'], answer:0,
+        explain:'Inspecting something means carefully examining it, which happens to every part of a bill.'},
+      {context:`"discussing what is intended with each new bill"`, prompt:'What does intended mean here?',
+        options:['Meant or planned to happen','Accidental','Forgotten','Cancelled'], answer:0,
+        explain:'Intended describes what is meant or planned — here, what the bill is supposed to accomplish.'},
+      {context:`"it is put into a transcript"`, prompt:'What does transcript mean here?',
+        options:['A written record of something, like spoken words','A spoken speech only','A drawing','A type of vote'], answer:0,
+        explain:'A transcript is a written record, here of the discussions and facts about the bill.'},
+      {context:`"Everyone in Congress can now cast their ballot."`, prompt:'What does ballot mean here?',
+        options:['A formal vote, often on paper','A written speech','A type of law','A meeting'], answer:0,
+        explain:'A ballot is a formal vote — how each Congress member records their decision.'},
+      {context:`"cast their ballot"`, prompt:'What does cast mean here?',
+        options:['To formally submit a vote','To write a bill','To read a bill','To cancel a vote'], answer:0,
+        explain:'To cast a ballot means to formally submit your vote.'},
+      {context:`"the talk can go on throughout many months"`, prompt:'What does throughout mean here?',
+        options:['During the entire length of a period of time','Only at the very start','Only at the very end','Never'], answer:0,
+        explain:'Throughout means during the entire span of time — here, many months of ongoing discussion.'},
+      {context:`"checking the cost and discussing what is intended"`, prompt:'What does discussing mean here?',
+        options:['Talking about something in detail to reach understanding','Ignoring completely','Arguing angrily only','Voting immediately'], answer:0,
+        explain:'Discussing means talking through something carefully — here, what each bill is meant to do.'},
+      {context:`"publishing it for the press and the public to see"`, prompt:'What does publishing mean here?',
+        options:['Making information available for others to read','Hiding information','Deleting information','Keeping something secret'], answer:0,
+        explain:'Publishing means making something available for others to read — here, the bill\'s transcript.'},
+    ]},
+  { id:'spelling', tab:'Spelling', title:"Case File 4 — Spelling Forensics", icon:'✏️',
+    intro:"A detective's notes have to be exact. Listen to each word and spell it correctly to file it as evidence.",
+    type:'spell', points:15,
+    questions:[
+      {word:'collecting', sentence:'Congress starts by collecting all the facts.'},
+      {word:'editing', sentence:'They spend time editing the text.'},
+      {word:'checking', sentence:'They spend time checking the cost.'},
+      {word:'discussing', sentence:'They spend time discussing what is intended.'},
+      {word:'publishing', sentence:'It is put into a transcript, publishing it for the public.'},
+      {word:'passing', sentence:'Passing a bill in Congress is complex.'},
+      {word:'inspected', sentence:'Every aspect of a bill is inspected.'},
+      {word:'intended', sentence:'They discuss what is intended with each bill.'},
+      {word:'transcript', sentence:'It is put into a transcript.'},
+      {word:'ballot', sentence:'Everyone can cast their ballot.'},
+    ]},
+  { id:'structure', tab:'Structure', title:"Case File 5 — Structure Analysis", icon:'🧩',
+    intro:"This story adds -ing to basewords. Mark the welded ing chunks and digraphs to crack the code.",
+    type:'mc', points:10,
+    questions:[
+      {context:'collecting', prompt:'Which letters form the welded chunk at the end?', options:['co','ll','ct','ing'], answer:3,
+        explain:'"Ing" is a welded sound taught as one unit — it gets added onto the baseword "collect."'},
+      {context:'editing', prompt:'Which letters form the welded chunk at the end?', options:['ed','it','ti','ing'], answer:3,
+        explain:'"Ing" is a welded sound taught as one unit — it gets added onto the baseword "edit."'},
+      {context:'checking', prompt:'Which letters form the beginning digraph?', options:['ch','ec','ki','ng'], answer:0,
+        explain:'C and h together make one new sound, /ch/, at the start of checking.'},
+      {context:'checking', prompt:'Which letters form the digraph before the ending?', options:['ch','ec','ck','ing'], answer:2,
+        explain:'C and k together make one new sound, /ck/, right before the -ing ending.'},
+      {context:'publishing', prompt:'Which letters form the digraph?', options:['pu','bl','sh','ing'], answer:2,
+        explain:'S and h together make one new sound, /sh/, in publishing.'},
+      {context:'transcript', prompt:'Which letters form the welded chunk in this word?', options:['tr','an','sc','ip'], answer:1,
+        explain:'"An" is a welded sound taught as one unit — you can hear it stay together in transcript.'},
+      {context:'ballot', prompt:'Which letters form the welded chunk in this word?', options:['ba','all','ot','lo'], answer:1,
+        explain:'"All" is a welded sound taught as one unit — you can hear it stay together in ballot.'},
+      {context:'discussing', prompt:'How many syllables does this word have?', options:['2','3','4','5'], answer:1,
+        explain:'Discussing breaks into three syllable chunks: dis-cuss-ing.'},
+      {context:'inspected', prompt:'How many syllables does this word have?', options:['2','3','4','5'], answer:1,
+        explain:'Inspected breaks into three syllable chunks: in-spect-ed.'},
+      {context:'intended', prompt:'How many syllables does this word have?', options:['2','3','4','5'], answer:1,
+        explain:'Intended breaks into three syllable chunks: in-tend-ed.'},
+    ]},
+];
+
 const STORY_PACKS = {
   brads_bad_day: {
     id: 'brads_bad_day',
@@ -1278,6 +2710,96 @@ const STORY_PACKS = {
     paragraphs: STORY_PARAGRAPHS_HELP_FROM_CHAN,
     rounds: ROUNDS_HELP_FROM_CHAN,
   },
+  best_lunch: {
+    id: 'best_lunch',
+    title: 'The Best Lunch',
+    substep: '3.1AB',
+    blurb: 'A family surprises Mom with lunch — two-syllable closed-syllable words.',
+    keyTerms: KEY_TERMS_BEST_LUNCH,
+    paragraphs: STORY_PARAGRAPHS_BEST_LUNCH,
+    rounds: ROUNDS_BEST_LUNCH,
+  },
+  snack_or_script: {
+    id: 'snack_or_script',
+    title: 'Snack or Script?',
+    substep: '3.1B',
+    blurb: 'A deadline emergency and a helpful friend — two-syllable closed-syllable words.',
+    keyTerms: KEY_TERMS_SNACK_OR_SCRIPT,
+    paragraphs: STORY_PARAGRAPHS_SNACK_OR_SCRIPT,
+    rounds: ROUNDS_SNACK_OR_SCRIPT,
+  },
+  running_contest: {
+    id: 'running_contest',
+    title: 'The Running Contest',
+    substep: '3.2AB',
+    blurb: 'A racer chases first place — two-syllable words with blends.',
+    keyTerms: KEY_TERMS_RUNNING_CONTEST,
+    paragraphs: STORY_PARAGRAPHS_RUNNING_CONTEST,
+    rounds: ROUNDS_RUNNING_CONTEST,
+  },
+  problems_at_common: {
+    id: 'problems_at_common',
+    title: 'Problems at the Common',
+    substep: '3.2B',
+    blurb: 'A storm-damaged town common gets a full repair — two-syllable words with blends.',
+    keyTerms: KEY_TERMS_PROBLEMS_COMMON,
+    paragraphs: STORY_PARAGRAPHS_PROBLEMS_COMMON,
+    rounds: ROUNDS_PROBLEMS_COMMON,
+  },
+  craft_class: {
+    id: 'craft_class',
+    title: 'Craft Class',
+    substep: '3.3AB',
+    blurb: 'A popular puppet-making class — two-syllable words and blends.',
+    keyTerms: KEY_TERMS_CRAFT_CLASS,
+    paragraphs: STORY_PARAGRAPHS_CRAFT_CLASS,
+    rounds: ROUNDS_CRAFT_CLASS,
+  },
+  alans_lab: {
+    id: 'alans_lab',
+    title: "Alan's Work in the Lab",
+    substep: '3.3B',
+    blurb: 'A water-testing job that matters more than it seems — two-syllable words.',
+    keyTerms: KEY_TERMS_ALANS_LAB,
+    paragraphs: STORY_PARAGRAPHS_ALANS_LAB,
+    rounds: ROUNDS_ALANS_LAB,
+  },
+  the_atlantic: {
+    id: 'the_atlantic',
+    title: 'The Atlantic',
+    substep: '3.4AB',
+    blurb: 'An ocean under threat, and how people can help — multisyllabic closed syllables.',
+    keyTerms: KEY_TERMS_THE_ATLANTIC,
+    paragraphs: STORY_PARAGRAPHS_THE_ATLANTIC,
+    rounds: ROUNDS_THE_ATLANTIC,
+  },
+  fossil_exhibit: {
+    id: 'fossil_exhibit',
+    title: 'The Fossil Exhibit',
+    substep: '3.4B',
+    blurb: 'A long-awaited museum visit — multisyllabic closed syllables.',
+    keyTerms: KEY_TERMS_FOSSIL_EXHIBIT,
+    paragraphs: STORY_PARAGRAPHS_FOSSIL_EXHIBIT,
+    rounds: ROUNDS_FOSSIL_EXHIBIT,
+  },
+  walking_and_talking: {
+    id: 'walking_and_talking',
+    title: 'Walking and Talking',
+    substep: '3.5AB',
+    blurb: 'Two best friends share their futures on the walk to school — adding -ing to basewords.',
+    keyTerms: KEY_TERMS_WALKING_TALKING,
+    paragraphs: STORY_PARAGRAPHS_WALKING_TALKING,
+    rounds: ROUNDS_WALKING_TALKING,
+  },
+  passing_a_bill: {
+    id: 'passing_a_bill',
+    title: 'Passing a Bill',
+    substep: '3.5B',
+    blurb: 'How a bill becomes a law, step by step — adding -ing to basewords.',
+    keyTerms: KEY_TERMS_PASSING_BILL,
+    paragraphs: STORY_PARAGRAPHS_PASSING_BILL,
+    rounds: ROUNDS_PASSING_BILL,
+  },
   move_to_states: {
     id: 'move_to_states',
     title: 'A Move to the States',
@@ -1302,8 +2824,12 @@ const STORY_PACKS = {
      Then add the key to STORY_ORDER below so it appears in the picker.
   ----------------------------------------------------------------- */
 };
-const STORY_ORDER = ['shack_has_rot', 'big_bass', 'spring_job', 'help_from_chan', 'brads_bad_day', 'move_to_states'];
+const STORY_ORDER = ['shack_has_rot', 'brads_bad_day', 'big_bass', 'spring_job', 'help_from_chan',
+  'best_lunch', 'snack_or_script', 'running_contest', 'problems_at_common', 'craft_class',
+  'alans_lab', 'the_atlantic', 'fossil_exhibit', 'walking_and_talking', 'passing_a_bill',
+  'move_to_states'];
 const DEFAULT_STORY_ID = 'brads_bad_day';
+let storyFilterStep = 'all'; // 'all' or a step number string, used by renderStoryPicker
 
 let ROUNDS = [];
 let STORY_PARAGRAPHS = [];
@@ -1325,7 +2851,10 @@ function loadStoryPack(id){
 let S = {
   screen:'storyPicker',
   storyId:null,
-  mode:null,          // 'host' | 'join' | 'offline'
+  mode:null,          // 'host' | 'join' | 'offline' | 'solo' | 'vsComputer'
+  pendingMode:null,   // mode chosen on modeSelect screen, before name entry
+  botDifficulty:null, // 'easy' | 'medium' | 'hard', for vsComputer mode
+  assignmentTeacherId:null, // set when arriving via a teacher assignment link
   code:null,
   playerSlot:null,    // 1 or 2
   name:'',
@@ -1386,6 +2915,60 @@ function makeCode(){
   return c;
 }
 
+/* ---------------- COMPUTER OPPONENT (BOT) ----------------
+   Simulated locally — no real second player is needed. The bot doesn't
+   answer real questions; it advances on a timer scaled to difficulty and
+   scores using the current story's own average points-per-question, so
+   the race bar and final score stay roughly comparable to a real student. */
+const BOT_DIFFICULTY = {
+  easy:   {accuracy:0.60, secPerQuestion:22},
+  medium: {accuracy:0.80, secPerQuestion:15},
+  hard:   {accuracy:0.95, secPerQuestion:9}
+};
+let botTimer = null;
+let botState = null;
+
+function totalQuestionsAll(){
+  let total=0; ROUNDS.forEach(r=> total += totalQuestionsInRound(r));
+  return total;
+}
+function avgPointsPerQuestion(){
+  let sum=0, count=0;
+  ROUNDS.forEach(r=>{
+    const n = totalQuestionsInRound(r);
+    sum += (r.points||10) * n;
+    count += n;
+  });
+  return count ? sum/count : 10;
+}
+
+function startBot(difficulty){
+  stopBot();
+  const cfg = BOT_DIFFICULTY[difficulty] || BOT_DIFFICULTY.medium;
+  const total = totalQuestionsAll();
+  const avgPts = avgPointsPerQuestion();
+  botState = {done:0, total, score:0, cfg, avgPts};
+  botTimer = setInterval(tickBot, cfg.secPerQuestion*1000);
+}
+function stopBot(){
+  if(botTimer){ clearInterval(botTimer); botTimer=null; }
+  botState = null;
+}
+function tickBot(){
+  if(!botState || S.mode!=='vsComputer'){ stopBot(); return; }
+  botState.done++;
+  const correct = Math.random() < botState.cfg.accuracy;
+  botState.score += correct ? Math.round(botState.avgPts) : Math.round(botState.avgPts*0.3);
+  const pct = Math.min(100, Math.round(100*botState.done/botState.total));
+  const done = botState.done >= botState.total;
+  S.opponent = {
+    name: S.opponent.name, score: botState.score, progress: pct,
+    finished: done, finishTime: done ? Date.now() : null
+  };
+  if(done) stopBot();
+  render();
+}
+
 /* ---------------- RENDER HELPERS ---------------- */
 const app = document.getElementById('app');
 function el(html){ const d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstChild; }
@@ -1403,12 +2986,16 @@ function corkboardHTML(){
 
 function raceBarHTML(){
   const myPct = overallProgressPct(S.roundIdx, S.qIdx);
-  const oppPct = S.opponent.progress || 0;
-  return `<div class="race-bar">
-    <div class="race-card">
+  const myCard = `<div class="race-card">
       <div class="name"><span>🕵️ ${S.name||'You'}</span><span class="score">${S.score} pts</span></div>
       <div class="progress-track"><div class="progress-fill" style="width:${myPct}%"></div></div>
-    </div>
+    </div>`;
+  if(S.mode==='solo'){
+    return `<div class="race-bar">${myCard}</div>`;
+  }
+  const oppPct = S.opponent.progress || 0;
+  return `<div class="race-bar">
+    ${myCard}
     <div class="race-card">
       <div class="name"><span>🕵️ ${S.opponent.name||'Detective 2'} ${S.opponent.finished?'🏁':''}</span><span class="score">${S.opponent.score||0} pts</span></div>
       <div class="progress-track"><div class="progress-fill" style="width:${oppPct}%"></div></div>
@@ -1447,6 +3034,8 @@ function openStoryModal(){
 function render(){
   app.innerHTML='';
   if(S.screen==='storyPicker') return renderStoryPicker();
+  if(S.screen==='modeSelect') return renderModeSelect();
+  if(S.screen==='playerSetup') return renderPlayerSetup();
   if(S.screen==='welcome') return renderWelcome();
   if(S.screen==='lobby') return renderLobby();
   if(S.screen==='caseBrief') return renderCaseBrief();
@@ -1457,7 +3046,17 @@ function render(){
 
 function renderStoryPicker(){
   app.appendChild(el(masthead()));
-  const cardsHtml = STORY_ORDER.map(id=>{
+  const steps = Array.from(new Set(STORY_ORDER.map(id=>Math.floor(parseFloat(STORY_PACKS[id].substep))))).sort((a,b)=>a-b);
+  const filterChipsHtml = `
+    <div class="mark-toolbar" style="margin-top:2px;">
+      <button class="tool-btn ${storyFilterStep==='all'?'active':''}" data-step="all">All Steps</button>
+      ${steps.map(s=>`<button class="tool-btn ${storyFilterStep===String(s)?'active':''}" data-step="${s}">Step ${s}</button>`).join('')}
+    </div>`;
+  const visibleIds = STORY_ORDER.filter(id=>{
+    if(storyFilterStep==='all') return true;
+    return Math.floor(parseFloat(STORY_PACKS[id].substep))===Number(storyFilterStep);
+  });
+  const cardsHtml = visibleIds.length ? visibleIds.map(id=>{
     const p = STORY_PACKS[id];
     return `<div class="story-card">
       <div class="story-card-title">${p.title}</div>
@@ -1465,23 +3064,114 @@ function renderStoryPicker(){
       <p class="story-card-blurb">${p.blurb}</p>
       <button class="btn" data-story="${id}">Select This Case</button>
     </div>`;
-  }).join('');
+  }).join('') : `<p class="small" style="grid-column:1/-1;">No cases at this step yet.</p>`;
   const panel = el(`
     <div class="panel">
       <h2>📂 Choose a Case File</h2>
       <p>Pick which WRS story this investigation is built around.</p>
+      ${filterChipsHtml}
       <div class="story-grid">${cardsHtml}</div>
       <p class="small" style="margin-top:16px;">Joining a partner's case instead? Pick any card to continue — if you enter a case code on the next screen, your partner's story takes over automatically.</p>
     </div>
   `);
   app.appendChild(panel);
+  panel.querySelectorAll('[data-step]').forEach(btn=>{
+    btn.onclick=()=>{ storyFilterStep = btn.dataset.step; render(); };
+  });
   panel.querySelectorAll('[data-story]').forEach(btn=>{
     btn.onclick=()=>{
       loadStoryPack(btn.dataset.story);
-      S.screen='welcome';
+      S.screen='modeSelect';
       render();
     };
   });
+}
+
+function renderModeSelect(){
+  app.appendChild(el(masthead()));
+  app.appendChild(el(`
+    <div class="panel center">
+      <h2>🎮 Choose How to Play</h2>
+      <p class="small">Case selected: <b>${CURRENT_STORY_TITLE}</b> (Substep ${CURRENT_STORY_SUBSTEP})</p>
+      <div class="story-grid">
+        <div class="story-card">
+          <div class="story-card-title">🧍 Solo</div>
+          <p class="story-card-blurb">Work the case on your own, at your own pace.</p>
+          <button class="btn" data-mode="solo">Play Solo</button>
+        </div>
+        <div class="story-card">
+          <div class="story-card-title">🤖 Vs Computer</div>
+          <p class="story-card-blurb">Race ARIA, the computer detective — pick a difficulty.</p>
+          <button class="btn" data-mode="vsComputer">Play vs Computer</button>
+        </div>
+        <div class="story-card">
+          <div class="story-card-title">🕵️🕵️ Vs Player</div>
+          <p class="story-card-blurb">Race a partner live, on another device.</p>
+          <button class="btn" data-mode="vsPlayer">Play vs Player</button>
+        </div>
+      </div>
+      <button class="btn ghost" id="backToPickerBtn" style="margin-top:10px;">← Choose a Different Case</button>
+    </div>
+  `));
+  app.querySelectorAll('[data-mode]').forEach(btn=>{
+    btn.onclick=()=>{
+      const m = btn.dataset.mode;
+      if(m==='vsPlayer'){ S.screen='welcome'; render(); return; }
+      S.pendingMode = m;
+      S.screen = 'playerSetup';
+      render();
+    };
+  });
+  document.getElementById('backToPickerBtn').onclick=()=>{ S.screen='storyPicker'; render(); };
+}
+
+function renderPlayerSetup(){
+  const isBot = S.pendingMode === 'vsComputer';
+  app.appendChild(el(masthead()));
+  app.appendChild(el(`
+    <div class="panel">
+      <h2>🕵️ Detective Sign-In</h2>
+      <label class="small">Your detective name</label>
+      <input id="nameInput" type="text" placeholder="e.g. Detective Rivera" />
+      ${isBot ? `
+        <label class="small">Computer difficulty</label>
+        <div class="row" style="margin-bottom:14px;">
+          <button class="tool-btn diff-btn active" data-diff="easy">Easy</button>
+          <button class="tool-btn diff-btn" data-diff="medium">Medium</button>
+          <button class="tool-btn diff-btn" data-diff="hard">Hard</button>
+        </div>
+      ` : ''}
+      <button class="btn" id="startSetupBtn">${isBot?'Start Race':'Start Case'}</button>
+      <div class="center" style="margin-top:12px;">
+        <button class="btn ghost" id="backModeBtn">← Back</button>
+      </div>
+    </div>
+  `));
+  let chosenDiff = 'easy';
+  if(isBot){
+    document.querySelectorAll('.diff-btn').forEach(b=>{
+      b.onclick=()=>{
+        chosenDiff = b.dataset.diff;
+        document.querySelectorAll('.diff-btn').forEach(x=>x.classList.toggle('active', x===b));
+      };
+    });
+  }
+  document.getElementById('backModeBtn').onclick=()=>{ S.screen='modeSelect'; render(); };
+  document.getElementById('startSetupBtn').onclick=()=>{
+    const name = document.getElementById('nameInput').value.trim() || 'Detective 1';
+    S.name = name; S.playerSlot = 1; S.mode = S.pendingMode;
+    S.code = FIREBASE_OK ? makeCode() : 'LOCAL';
+    if(FIREBASE_OK){
+      db.ref(`sessions/${S.code}`).set({created:Date.now(), storyId:S.storyId, mode:S.mode});
+      syncSelf();
+    }
+    if(isBot){
+      S.botDifficulty = chosenDiff;
+      S.opponent = {name:`🤖 ARIA (${chosenDiff})`, score:0, roundIdx:0, progress:0, finished:false};
+    }
+    S.screen='caseBrief';
+    render();
+  };
 }
 
 function renderWelcome(){
@@ -1695,6 +3385,7 @@ function renderCaseBrief(){
     S.roundIdx=0; S.qIdx=0;
     S.screen='roundIntro';
     syncSelf();
+    if(S.mode==='vsComputer') startBot(S.botDifficulty);
     render();
   };
 }
@@ -2452,6 +4143,7 @@ function nextRound(){
     S.finished=true;
     S.finishTime = Date.now();
     S.screen='finished';
+    if(S.mode==='vsComputer') stopBot();
     syncSelf();
   } else {
     S.screen='roundIntro';
@@ -2468,22 +4160,45 @@ function renderFinished(){
       <p>You solved every case file. Final score locked in.</p>
     </div>
   `));
-  app.appendChild(el(`
-    <div class="final-board">
-      <div class="final-card">
-        <div>🕵️ ${S.name}</div>
-        <div class="big">${S.score}</div>
-        <div class="small">points</div>
-        ${S.finished?'<div class="small">🏁 Finished</div>':''}
+  if(S.mode==='solo'){
+    app.appendChild(el(`
+      <div class="final-board" style="grid-template-columns:1fr; max-width:320px; margin:0 auto;">
+        <div class="final-card">
+          <div>🕵️ ${S.name}</div>
+          <div class="big">${S.score}</div>
+          <div class="small">points</div>
+          <div class="small">🏁 Finished</div>
+        </div>
       </div>
-      <div class="final-card">
-        <div>🕵️ ${S.opponent.name||'Detective 2'}</div>
-        <div class="big">${S.opponent.score||0}</div>
-        <div class="small">points</div>
-        ${S.opponent.finished?'<div class="small">🏁 Finished</div>':'<div class="small">still investigating...</div>'}
+    `));
+  } else {
+    app.appendChild(el(`
+      <div class="final-board">
+        <div class="final-card">
+          <div>🕵️ ${S.name}</div>
+          <div class="big">${S.score}</div>
+          <div class="small">points</div>
+          ${S.finished?'<div class="small">🏁 Finished</div>':''}
+        </div>
+        <div class="final-card">
+          <div>🕵️ ${S.opponent.name||'Detective 2'}</div>
+          <div class="big">${S.opponent.score||0}</div>
+          <div class="small">points</div>
+          ${S.opponent.finished?'<div class="small">🏁 Finished</div>':'<div class="small">still investigating...</div>'}
+        </div>
       </div>
-    </div>
-  `));
+    `));
+  }
+  app.appendChild(el(`<div class="center" style="margin-top:18px;"><button class="btn ghost" id="newCaseBtn">🗂️ Start a New Case</button></div>`));
+  document.getElementById('newCaseBtn').onclick=()=>{
+    stopBot();
+    S.screen='storyPicker'; S.mode=null; S.pendingMode=null; S.botDifficulty=null;
+    S.assignmentTeacherId=null; S.code=null; S.storyId=null;
+    S.opponent={name:'Detective 2', score:0, roundIdx:0, finished:false};
+    S.roundIdx=0; S.qIdx=0; S.score=0; S.seqSetIdx=0; S.seqOrder=[];
+    S.finished=false; S.finishTime=null; S.answerLog=[];
+    render();
+  };
 }
 
 /* ---------------- TEACHER TOOLS ---------------- */
@@ -2498,6 +4213,7 @@ function openTeacher(){
   const pin = prompt('Teacher PIN:');
   if(pin===null) return;
   if(pin!==getTeacherPin()){ alert('Incorrect PIN.'); return; }
+  ensureTeacherProfile();
   const bg = el(`<div class="modal-bg"><div class="modal">
     <h2 class="type">🕵️ Teacher Tools</h2>
     <p class="small">Firebase status: ${FIREBASE_OK?'Connected ✅':'Not connected — offline mode ⚠️'}</p>
@@ -2513,6 +4229,27 @@ function openTeacher(){
     <button class="btn ghost" id="testVoiceBtn">🔊 Test Voice</button>
     <hr>
     <button class="btn" id="printReportBtn">🖨️ Print Report</button>
+    <hr>
+    <p class="small" id="teacherNameLine"><b>👤 Assignments saved under:</b> ${getTeacherName()} <button class="btn ghost" id="renameTeacherBtn" style="padding:3px 9px; font-size:11px; margin-left:6px;">Rename</button></p>
+    <p class="small"><b>📋 Create a Solo Assignment</b> — generates a link that drops a student straight into a case, skipping the picker.</p>
+    <select id="assignStorySelect" style="width:100%; padding:9px; border-radius:6px; border:2px solid var(--paper-line); font-family:'Libre Franklin',sans-serif; margin-bottom:8px;">
+      ${STORY_ORDER.map(id=>`<option value="${id}">${STORY_PACKS[id].title} (Substep ${STORY_PACKS[id].substep})</option>`).join('')}
+    </select>
+    <input id="assignStudentName" type="text" placeholder="Student name" />
+    <div class="row" style="margin-bottom:8px;">
+      <button class="tool-btn assign-mode-btn active" data-mode="solo">Solo</button>
+      <button class="tool-btn assign-mode-btn" data-mode="vsComputer">Vs Computer</button>
+    </div>
+    <div class="row" id="assignDiffRow" style="display:none; margin-bottom:8px;">
+      <button class="tool-btn assign-diff-btn active" data-diff="easy">Easy</button>
+      <button class="tool-btn assign-diff-btn" data-diff="medium">Medium</button>
+      <button class="tool-btn assign-diff-btn" data-diff="hard">Hard</button>
+    </div>
+    <button class="btn" id="createAssignBtn">Create Assignment Link</button>
+    <div id="assignResult"></div>
+    <hr>
+    <p class="small"><b>📂 My Assignments</b> — only assignments created under this profile show here.</p>
+    <div id="myAssignmentsList"><p class="small" style="font-style:italic;">Loading…</p></div>
     <hr>
     <button class="btn" id="resetBtn">Reset My Progress</button>
     <button class="btn ghost" id="changePinBtn">Change PIN</button>
@@ -2533,11 +4270,92 @@ function openTeacher(){
     if(newPin && newPin.trim().length>=4){ setTeacherPin(newPin.trim()); alert('PIN updated.'); }
     else if(newPin!==null){ alert('PIN must be at least 4 characters — not changed.'); }
   };
+  function wireRenameBtn(){
+    document.getElementById('renameTeacherBtn').onclick=()=>{
+      const name = prompt('Display name for your assignments:', getTeacherName());
+      if(name && name.trim()){
+        renameTeacherDisplayName(name.trim());
+        document.getElementById('teacherNameLine').innerHTML =
+          `<b>👤 Assignments saved under:</b> ${getTeacherName()} <button class="btn ghost" id="renameTeacherBtn" style="padding:3px 9px; font-size:11px; margin-left:6px;">Rename</button>`;
+        wireRenameBtn();
+      }
+    };
+  }
+  wireRenameBtn();
   document.getElementById('closeTeacher').onclick=()=>bg.remove();
   document.getElementById('resetBtn').onclick=()=>{
+    stopBot();
     S.roundIdx=0; S.qIdx=0; S.score=0; S.seqSetIdx=0; S.seqOrder=[]; S.finished=false; S.answerLog=[];
     S.screen='roundIntro'; syncSelf(); bg.remove(); render();
   };
+
+  /* --- solo assignment creation --- */
+  let assignMode = 'solo';
+  let assignDiff = 'easy';
+  bg.querySelectorAll('.assign-mode-btn').forEach(b=>{
+    b.onclick=()=>{
+      assignMode = b.dataset.mode;
+      bg.querySelectorAll('.assign-mode-btn').forEach(x=>x.classList.toggle('active', x===b));
+      document.getElementById('assignDiffRow').style.display = assignMode==='vsComputer' ? 'flex' : 'none';
+    };
+  });
+  bg.querySelectorAll('.assign-diff-btn').forEach(b=>{
+    b.onclick=()=>{
+      assignDiff = b.dataset.diff;
+      bg.querySelectorAll('.assign-diff-btn').forEach(x=>x.classList.toggle('active', x===b));
+    };
+  });
+  document.getElementById('createAssignBtn').onclick=()=>{
+    const storyId = document.getElementById('assignStorySelect').value;
+    const studentName = document.getElementById('assignStudentName').value.trim();
+    if(!studentName){ alert('Enter a student name.'); return; }
+    if(!FIREBASE_OK){ alert("Firebase isn't connected, so assignment links can't be created in this preview."); return; }
+    const code = makeCode();
+    const payload = {
+      code, teacherId:getTeacherId(), teacherName:getTeacherName(), storyId, studentName,
+      mode:assignMode, difficulty:assignMode==='vsComputer'?assignDiff:null, createdAt:Date.now()
+    };
+    db.ref(`presets/${code}`).set(payload).then(()=>{
+      const link = `${location.origin}${location.pathname}?assign=${code}`;
+      document.getElementById('assignResult').innerHTML = `
+        <p class="small" style="margin-top:8px;"><b>Link for ${studentName}:</b></p>
+        <input type="text" readonly value="${link}" id="assignLinkOut" onclick="this.select()" />
+        <button class="btn ghost" id="copyAssignBtn" style="padding:6px 12px; font-size:12px;">Copy Link</button>
+      `;
+      document.getElementById('copyAssignBtn').onclick=()=>{
+        navigator.clipboard.writeText(link).then(()=>alert('Link copied!')).catch(()=>{});
+      };
+      loadMyAssignments();
+    }).catch(()=>alert('Could not save the assignment — check your connection.'));
+  };
+  loadMyAssignments();
+}
+
+function loadMyAssignments(){
+  const container = document.getElementById('myAssignmentsList');
+  if(!container) return;
+  if(!FIREBASE_OK){ container.innerHTML = '<p class="small" style="font-style:italic;">Firebase not connected.</p>'; return; }
+  db.ref('presets').orderByChild('teacherId').equalTo(getTeacherId()).once('value').then(snap=>{
+    const val = snap.val() || {};
+    const items = Object.values(val).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    if(!items.length){ container.innerHTML = '<p class="small" style="font-style:italic;">No assignments yet.</p>'; return; }
+    container.innerHTML = items.map(a=>{
+      const title = (STORY_PACKS[a.storyId]||{}).title || a.storyId;
+      const link = `${location.origin}${location.pathname}?assign=${a.code}`;
+      const modeLabel = a.mode==='vsComputer' ? `Vs Computer · ${a.difficulty}` : 'Solo';
+      return `<div class="small" style="border-bottom:1px solid var(--paper-line); padding:8px 0;">
+        <b>${a.studentName}</b> — ${title} (${modeLabel})<br>
+        <input type="text" readonly value="${link}" style="font-size:11px; margin:4px 0;" onclick="this.select()" />
+        <button class="btn ghost" data-del="${a.code}" style="padding:4px 10px; font-size:11px;">Delete</button>
+      </div>`;
+    }).join('');
+    container.querySelectorAll('[data-del]').forEach(btn=>{
+      btn.onclick=()=>{
+        if(!confirm('Delete this assignment link?')) return;
+        db.ref(`presets/${btn.dataset.del}`).remove().then(loadMyAssignments);
+      };
+    });
+  }).catch(()=>{ container.innerHTML = '<p class="small">Could not load assignments (this needs Firebase\'s index rule for teacherId — works fine at classroom scale even without one).</p>'; });
 }
 
 function reportSection(playerName, score, log){
@@ -2595,7 +4413,40 @@ function printReport(){
   setTimeout(()=>win.print(), 400);
 }
 
-render();
+/* ---------------- ENTRY POINT ----------------
+   If the page was opened via a teacher's assignment link (?assign=CODE), skip straight
+   into that case in the mode the teacher chose. Otherwise, show the normal picker. */
+function tryLoadAssignment(){
+  const code = new URLSearchParams(location.search).get('assign');
+  if(!code){ render(); return; }
+  if(!FIREBASE_OK){
+    alert("This assignment link needs an internet connection to load. Please check your connection and reload the page.");
+    render(); return;
+  }
+  db.ref(`presets/${code}`).once('value').then(snap=>{
+    const data = snap.val();
+    if(!data){ alert('This assignment link is no longer valid — ask your teacher for a new one.'); render(); return; }
+    loadStoryPack(data.storyId);
+    S.name = data.studentName || 'Detective';
+    S.playerSlot = 1;
+    S.mode = data.mode === 'vsComputer' ? 'vsComputer' : 'solo';
+    S.pendingMode = S.mode;
+    S.assignmentTeacherId = data.teacherId || null;
+    S.code = FIREBASE_OK ? makeCode() : 'LOCAL';
+    if(S.mode==='vsComputer'){
+      S.botDifficulty = data.difficulty || 'medium';
+      S.opponent = {name:`🤖 ARIA (${S.botDifficulty})`, score:0, roundIdx:0, progress:0, finished:false};
+    }
+    db.ref(`sessions/${S.code}`).set({created:Date.now(), storyId:S.storyId, mode:S.mode, teacherId:S.assignmentTeacherId});
+    syncSelf();
+    S.screen='caseBrief';
+    render();
+  }).catch(()=>{
+    alert('Could not load this assignment. Please check your connection and try again.');
+    render();
+  });
+}
+tryLoadAssignment();
 </script>
 </body>
 </html>
