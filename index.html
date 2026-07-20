@@ -250,6 +250,10 @@
   @media(max-width:640px){.final-board{grid-template-columns:1fr;}}
   .final-card{background:#fbf7ec; border:2px solid var(--brass); border-radius:10px; padding:16px; text-align:center;}
   .final-card .big{font-family:'Special Elite',monospace; font-size:34px; color:var(--red-dark);}
+  .rank-badge{
+    margin:14px auto 4px; padding:14px 20px; max-width:320px; border:2px solid var(--brass);
+    border-radius:10px; background:#fbf7ec;
+  }
   .teacher-toggle{
     position:fixed; bottom:16px; right:16px; background:var(--red);
     color:#fff; border:2px solid var(--brass); border-radius:24px;
@@ -2855,6 +2859,9 @@ let S = {
   pendingMode:null,   // mode chosen on modeSelect screen, before name entry
   botDifficulty:null, // 'easy' | 'medium' | 'hard', for vsComputer mode
   assignmentTeacherId:null, // set when arriving via a teacher assignment link
+  assignmentStudentId:null, // stable roster id, when the assignment came from a roster pick
+  rankRecorded:false, // guards against double-writing the best-rank record on re-render
+  bestRank:null,       // {label, icon, pct, sessionsCompleted} once fetched from studentRecords
   code:null,
   playerSlot:null,    // 1 or 2
   name:'',
@@ -3006,10 +3013,14 @@ function raceBarHTML(){
 function masthead(){
   const title = CURRENT_STORY_TITLE || 'Detective Division';
   const substep = CURRENT_STORY_SUBSTEP ? `WRS · SUBSTEP ${CURRENT_STORY_SUBSTEP} · DETECTIVE DIVISION` : 'WRS · DETECTIVE DIVISION';
+  let tagline = 'Solve the case — solo, vs computer, or vs a partner.';
+  if(S.mode==='solo') tagline = 'One detective. One case. Solve it as accurately as you can.';
+  else if(S.mode==='vsComputer') tagline = 'You vs. ARIA. Race to close the file.';
+  else if(S.mode==='host' || S.mode==='join' || S.mode==='offline') tagline = 'Two detectives. One case. Race to close the file.';
   return `<div class="masthead">
     <div class="badge">${substep}</div>
     <h1 class="type">${CURRENT_STORY_TITLE ? `Case File: ${title}` : 'Detective Case Files'}</h1>
-    <p>Two detectives. One case. Race to close the file.</p>
+    <p>${tagline}</p>
   </div>`;
 }
 
@@ -3257,6 +3268,63 @@ function renderLobby(){
 }
 
 const WARMUP_POINTS = 10;
+
+/* ---------------- DETECTIVE RANK SYSTEM ----------------
+   Rank is computed per case, from % of that case's total possible points —
+   not raw score — so a short case and a long case rank fairly against each
+   other. "Highest rank achieved" persists per student (keyed by teacher +
+   student name) so it can show up on the printed report over time, without
+   needing a login system or a full running point total. */
+const RANK_TIERS = [
+  {label:'Trainee Detective',  icon:'🔍', minPct:0},
+  {label:'Junior Detective',   icon:'🕵️', minPct:50},
+  {label:'Detective',          icon:'🕵️‍♀️', minPct:70},
+  {label:'Senior Detective',   icon:'🎖️', minPct:85},
+  {label:'Master Detective',   icon:'🏆', minPct:95}
+];
+function maxPossibleScore(){
+  let total = WARMUP_POINTS;
+  ROUNDS.forEach(r=> total += (r.points||10) * totalQuestionsInRound(r));
+  return total;
+}
+function rankForScore(score){
+  const max = maxPossibleScore();
+  const pct = max>0 ? Math.round(100*score/max) : 0;
+  let tier = RANK_TIERS[0];
+  for(const t of RANK_TIERS){ if(pct>=t.minPct) tier=t; }
+  return {label:tier.label, icon:tier.icon, pct};
+}
+function rankTierIndex(label){
+  return RANK_TIERS.findIndex(t=>t.label===label);
+}
+/* Writes a new personal-best rank only if it beats the stored one; always bumps sessionsCompleted.
+   Only runs for sessions that started from a teacher assignment link AND carry a studentId from
+   the roster — that's the only case where identity is stable (no typo/rename risk). */
+function recordRankIfNeeded(rank){
+  if(!FIREBASE_OK || !S.assignmentTeacherId || !S.assignmentStudentId || S.rankRecorded) return;
+  S.rankRecorded = true;
+  const ref = db.ref(`studentRecords/${S.assignmentTeacherId}/${S.assignmentStudentId}`);
+  ref.once('value').then(snap=>{
+    const existing = snap.val();
+    const newIdx = rankTierIndex(rank.label);
+    const oldIdx = existing ? rankTierIndex(existing.bestRankLabel) : -1;
+    const isNewBest = !existing || newIdx > oldIdx || (newIdx===oldIdx && rank.pct > (existing.bestRankPct||0));
+    const payload = {
+      studentName: S.name,
+      bestRankLabel: isNewBest ? rank.label : existing.bestRankLabel,
+      bestRankIcon: isNewBest ? rank.icon : existing.bestRankIcon,
+      bestRankPct: isNewBest ? rank.pct : existing.bestRankPct,
+      lastStoryId: S.storyId,
+      lastPlayed: Date.now(),
+      sessionsCompleted: (existing && existing.sessionsCompleted || 0) + 1
+    };
+    ref.set(payload).then(()=>{
+      S.bestRank = {label:payload.bestRankLabel, icon:payload.bestRankIcon, pct:payload.bestRankPct, sessionsCompleted:payload.sessionsCompleted};
+      render();
+    });
+  });
+}
+
 function wrapKeyTerms(text, terms){
   if(!terms.length) return text;
   const escaped = terms.map(t=>t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
@@ -3269,7 +3337,7 @@ function renderCaseBrief(){
   const panel = el(`
     <div class="panel">
       <h2>📁 Case Brief — Read the File</h2>
-      <p>Before the evidence rounds begin, both detectives need to read the full case file. Read it carefully — every round ahead pulls its clues straight from this text.</p>
+      <p>${S.mode==='solo' ? 'Before the evidence rounds begin, read the full case file.' : 'Before the evidence rounds begin, both detectives need to read the full case file.'} Read it carefully — every round ahead pulls its clues straight from this text.</p>
       <p class="small">Warm-up: circle the high-frequency words and scoop a sentence or two with your pencil before moving on. Worth ${WARMUP_POINTS} bonus points.</p>
       <div class="key-terms">
         ${KEY_TERMS.map(w=>`<span class="term-chip">${w}</span>`).join('')}
@@ -4153,11 +4221,23 @@ function nextRound(){
 }
 
 function renderFinished(){
+  const rank = rankForScore(S.score);
+  if(S.assignmentTeacherId) recordRankIfNeeded(rank);
   app.appendChild(el(masthead()));
   app.appendChild(el(`
     <div class="panel center">
       <h2>🗂️ Case Closed</h2>
       <p>You solved every case file. Final score locked in.</p>
+      <div class="rank-badge">
+        <div style="font-size:32px;">${rank.icon}</div>
+        <div class="type" style="font-size:18px; color:var(--red-dark);">${rank.label}</div>
+        <div class="small">${rank.pct}% of possible points this case</div>
+        ${S.assignmentTeacherId
+          ? (S.bestRank
+              ? `<div class="small" style="margin-top:6px;">🏅 Personal best: ${S.bestRank.icon} ${S.bestRank.label} (${S.bestRank.sessionsCompleted} case${S.bestRank.sessionsCompleted===1?'':'s'} completed)</div>`
+              : `<div class="small" style="margin-top:6px; font-style:italic;">Checking personal best…</div>`)
+          : ''}
+      </div>
     </div>
   `));
   if(S.mode==='solo'){
@@ -4172,18 +4252,21 @@ function renderFinished(){
       </div>
     `));
   } else {
+    const oppRank = rankForScore(S.opponent.score||0);
     app.appendChild(el(`
       <div class="final-board">
         <div class="final-card">
           <div>🕵️ ${S.name}</div>
           <div class="big">${S.score}</div>
           <div class="small">points</div>
+          <div class="small">${rank.icon} ${rank.label}</div>
           ${S.finished?'<div class="small">🏁 Finished</div>':''}
         </div>
         <div class="final-card">
           <div>🕵️ ${S.opponent.name||'Detective 2'}</div>
           <div class="big">${S.opponent.score||0}</div>
           <div class="small">points</div>
+          <div class="small">${oppRank.icon} ${oppRank.label}</div>
           ${S.opponent.finished?'<div class="small">🏁 Finished</div>':'<div class="small">still investigating...</div>'}
         </div>
       </div>
@@ -4193,7 +4276,8 @@ function renderFinished(){
   document.getElementById('newCaseBtn').onclick=()=>{
     stopBot();
     S.screen='storyPicker'; S.mode=null; S.pendingMode=null; S.botDifficulty=null;
-    S.assignmentTeacherId=null; S.code=null; S.storyId=null;
+    S.assignmentTeacherId=null; S.assignmentStudentId=null; S.code=null; S.storyId=null;
+    S.rankRecorded=false; S.bestRank=null;
     S.opponent={name:'Detective 2', score:0, roundIdx:0, finished:false};
     S.roundIdx=0; S.qIdx=0; S.score=0; S.seqSetIdx=0; S.seqOrder=[];
     S.finished=false; S.finishTime=null; S.answerLog=[];
@@ -4231,11 +4315,20 @@ function openTeacher(){
     <button class="btn" id="printReportBtn">🖨️ Print Report</button>
     <hr>
     <p class="small" id="teacherNameLine"><b>👤 Assignments saved under:</b> ${getTeacherName()} <button class="btn ghost" id="renameTeacherBtn" style="padding:3px 9px; font-size:11px; margin-left:6px;">Rename</button></p>
+    <p class="small"><b>🎓 My Students</b> — add each student once; you'll pick from this list when creating assignments, so names always match exactly (no typos, no history getting split across two spellings).</p>
+    <div class="row" style="margin-bottom:8px;">
+      <input id="newStudentName" type="text" placeholder="Add student name" style="margin:0;" />
+      <button class="btn ghost" id="addStudentBtn" style="flex:0 0 auto;">Add</button>
+    </div>
+    <div id="myStudentsList"><p class="small" style="font-style:italic;">Loading…</p></div>
+    <hr>
     <p class="small"><b>📋 Create a Solo Assignment</b> — generates a link that drops a student straight into a case, skipping the picker.</p>
     <select id="assignStorySelect" style="width:100%; padding:9px; border-radius:6px; border:2px solid var(--paper-line); font-family:'Libre Franklin',sans-serif; margin-bottom:8px;">
       ${STORY_ORDER.map(id=>`<option value="${id}">${STORY_PACKS[id].title} (Substep ${STORY_PACKS[id].substep})</option>`).join('')}
     </select>
-    <input id="assignStudentName" type="text" placeholder="Student name" />
+    <select id="assignStudentSelect" style="width:100%; padding:9px; border-radius:6px; border:2px solid var(--paper-line); font-family:'Libre Franklin',sans-serif; margin-bottom:8px;">
+      <option value="">Loading students…</option>
+    </select>
     <div class="row" style="margin-bottom:8px;">
       <button class="tool-btn assign-mode-btn active" data-mode="solo">Solo</button>
       <button class="tool-btn assign-mode-btn" data-mode="vsComputer">Vs Computer</button>
@@ -4289,6 +4382,17 @@ function openTeacher(){
     S.screen='roundIntro'; syncSelf(); bg.remove(); render();
   };
 
+  document.getElementById('addStudentBtn').onclick=()=>{
+    const name = document.getElementById('newStudentName').value.trim();
+    if(!name){ alert('Enter a student name.'); return; }
+    if(!FIREBASE_OK){ alert("Firebase isn't connected, so students can't be saved in this preview."); return; }
+    const ref = db.ref(`students/${getTeacherId()}`).push();
+    ref.set({name, createdAt:Date.now()}).then(()=>{
+      document.getElementById('newStudentName').value='';
+      loadMyStudents();
+    }).catch(()=>alert('Could not save this student — check your connection.'));
+  };
+
   /* --- solo assignment creation --- */
   let assignMode = 'solo';
   let assignDiff = 'easy';
@@ -4307,12 +4411,14 @@ function openTeacher(){
   });
   document.getElementById('createAssignBtn').onclick=()=>{
     const storyId = document.getElementById('assignStorySelect').value;
-    const studentName = document.getElementById('assignStudentName').value.trim();
-    if(!studentName){ alert('Enter a student name.'); return; }
+    const studentSelect = document.getElementById('assignStudentSelect');
+    const studentId = studentSelect.value;
+    const studentName = studentSelect.selectedOptions[0] ? studentSelect.selectedOptions[0].textContent : '';
+    if(!studentId){ alert('Add a student above, then select them here.'); return; }
     if(!FIREBASE_OK){ alert("Firebase isn't connected, so assignment links can't be created in this preview."); return; }
     const code = makeCode();
     const payload = {
-      code, teacherId:getTeacherId(), teacherName:getTeacherName(), storyId, studentName,
+      code, teacherId:getTeacherId(), teacherName:getTeacherName(), storyId, studentId, studentName,
       mode:assignMode, difficulty:assignMode==='vsComputer'?assignDiff:null, createdAt:Date.now()
     };
     db.ref(`presets/${code}`).set(payload).then(()=>{
@@ -4328,7 +4434,54 @@ function openTeacher(){
       loadMyAssignments();
     }).catch(()=>alert('Could not save the assignment — check your connection.'));
   };
+  loadMyStudents();
   loadMyAssignments();
+}
+
+function loadMyStudents(){
+  const listContainer = document.getElementById('myStudentsList');
+  const selectEl = document.getElementById('assignStudentSelect');
+  if(!listContainer) return;
+  if(!FIREBASE_OK){
+    listContainer.innerHTML = '<p class="small" style="font-style:italic;">Firebase not connected.</p>';
+    if(selectEl) selectEl.innerHTML = '<option value="">Firebase not connected</option>';
+    return;
+  }
+  db.ref(`students/${getTeacherId()}`).once('value').then(snap=>{
+    const val = snap.val() || {};
+    const roster = Object.entries(val).map(([id,s])=>({id, ...s})).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    if(selectEl){
+      selectEl.innerHTML = roster.length
+        ? roster.map(s=>`<option value="${s.id}">${s.name}</option>`).join('')
+        : '<option value="">Add a student below first</option>';
+    }
+    if(!roster.length){
+      listContainer.innerHTML = '<p class="small" style="font-style:italic;">No students yet — add one above.</p>';
+      return;
+    }
+    Promise.all(roster.map(s=>
+      db.ref(`studentRecords/${getTeacherId()}/${s.id}`).once('value').then(rs=>Object.assign({}, s, {record:rs.val()}))
+    )).then(withRecords=>{
+      listContainer.innerHTML = withRecords.map(s=>{
+        const rec = s.record;
+        const rankBit = rec
+          ? `${rec.bestRankIcon} ${rec.bestRankLabel} · ${rec.sessionsCompleted} case${rec.sessionsCompleted===1?'':'s'} completed`
+          : 'No cases completed yet';
+        return `<div class="small" style="border-bottom:1px solid var(--paper-line); padding:6px 0; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <span><b>${s.name}</b> — ${rankBit}</span>
+          <button class="btn ghost" data-delstudent="${s.id}" style="padding:4px 10px; font-size:11px; flex:0 0 auto;">Remove</button>
+        </div>`;
+      }).join('');
+      listContainer.querySelectorAll('[data-delstudent]').forEach(btn=>{
+        btn.onclick=()=>{
+          if(!confirm('Remove this student from your roster? Their past assignment links and rank history stay intact — this just removes them from the picker.')) return;
+          db.ref(`students/${getTeacherId()}/${btn.dataset.delstudent}`).remove().then(loadMyStudents);
+        };
+      });
+    });
+  }).catch(()=>{
+    listContainer.innerHTML = '<p class="small">Could not load students.</p>';
+  });
 }
 
 function loadMyAssignments(){
@@ -4388,6 +4541,12 @@ function printReport(){
   const win = window.open('', '_blank');
   if(!win){ alert('Your browser blocked the print window — please allow pop-ups for this site.'); return; }
   const dateStr = new Date().toLocaleDateString(undefined, {year:'numeric', month:'long', day:'numeric'});
+  const rank = rankForScore(S.score);
+  const rankLine = `<p style="font-size:14px;"><b>Rank this case:</b> ${rank.icon} ${rank.label} (${rank.pct}% of possible points)`
+    + (S.bestRank
+        ? ` &nbsp;·&nbsp; <b>Highest rank achieved:</b> ${S.bestRank.icon} ${S.bestRank.label} (${S.bestRank.sessionsCompleted} case${S.bestRank.sessionsCompleted===1?'':'s'} completed)`
+        : (S.assignmentTeacherId ? ` &nbsp;·&nbsp; <i>Highest rank still loading — close and reprint in a moment if it's missing.</i>` : ''))
+    + `</p>`;
   const html = `<!DOCTYPE html><html><head><title>Case Report — ${CURRENT_STORY_TITLE}</title>
     <style>
       body{font-family:Georgia,serif; color:#222; max-width:760px; margin:30px auto; padding:0 20px;}
@@ -4404,6 +4563,7 @@ function printReport(){
     </style></head><body>
     <h1>Case Report: ${CURRENT_STORY_TITLE}</h1>
     <h2>WRS Substep ${CURRENT_STORY_SUBSTEP} · Printed ${dateStr}</h2>
+    ${rankLine}
     ${reportSection(S.name||'Detective 1', S.score, S.answerLog)}
     ${S.opponent && (S.opponent.answerLog||[]).length ? reportSection(S.opponent.name||'Detective 2', S.opponent.score||0, S.opponent.answerLog) : ''}
   </body></html>`;
@@ -4432,6 +4592,7 @@ function tryLoadAssignment(){
     S.mode = data.mode === 'vsComputer' ? 'vsComputer' : 'solo';
     S.pendingMode = S.mode;
     S.assignmentTeacherId = data.teacherId || null;
+    S.assignmentStudentId = data.studentId || null;
     S.code = FIREBASE_OK ? makeCode() : 'LOCAL';
     if(S.mode==='vsComputer'){
       S.botDifficulty = data.difficulty || 'medium';
