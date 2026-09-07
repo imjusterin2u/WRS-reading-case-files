@@ -161,6 +161,9 @@
   .tile.tile-consonant{background:var(--wrs-yellow); color:var(--pencil); box-shadow:0 3px 0 var(--wrs-yellow-border);}
   .tile.tile-vowel{background:var(--wrs-pink); color:var(--pencil); box-shadow:0 3px 0 var(--wrs-pink-border);}
   .tile.tile-welded{background:var(--wrs-welded); color:var(--pencil); box-shadow:0 3px 0 var(--wrs-welded-border);}
+  .tile.tile-affix{background:var(--wrs-yellow); color:var(--pencil); box-shadow:0 3px 0 var(--wrs-yellow-border);}
+  .tile.tile-base{background:var(--paper); color:var(--pencil); box-shadow:0 3px 0 var(--paper-line);}
+  .morph-dash{align-self:center; font-size:22px; font-weight:700; color:var(--pencil); margin:0 -2px;}
   .tile.dragging{
     position:fixed; z-index:80; pointer-events:none;
     box-shadow:0 10px 22px rgba(0,0,0,0.5); transform:scale(1.1);
@@ -185,6 +188,8 @@
   .tap-dot.tap-tile-consonant{border-color:var(--wrs-yellow-border); background:#fdf6dc;}
   .tap-dot.tap-tile-vowel{border-color:var(--wrs-pink-border); background:#fbeae1;}
   .tap-dot.tap-tile-welded{border-color:var(--wrs-welded-border); background:#eaf3ec;}
+  .tap-dot.tap-tile-affix{border-color:var(--wrs-yellow-border); background:#fdf6dc;}
+  .tap-dot.tap-tile-base{border-color:var(--paper-line); background:var(--paper);}
   .tap-dot.tap-dot-multi{font-size:16px; letter-spacing:0.5px;}
 
   .story-grid{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); margin:16px 0;}
@@ -308,7 +313,7 @@
   #markCanvas{position:absolute; top:0; left:0; touch-action:none; cursor:crosshair;}
   .hf-word{cursor:pointer; padding:1px 3px;}
   .hf-word.circled{
-    border:2px solid var(--red); border-radius:50%; padding:1px 8px;
+    outline:2px solid var(--red); outline-offset:3px; border-radius:50%;
     box-shadow:0 0 0 1px rgba(163,49,42,0.15);
   }
 </style>
@@ -336,14 +341,6 @@
 <script src="stories/walking_and_talking.js"></script>
 <script src="stories/passing_a_bill.js"></script>
 <script src="stories/move_to_states.js"></script>
-<script src="stories/pony_ride.js"></script>
-<script src="stories/ruby_bulldog.js"></script>
-<script src="stories/brody_golf.js"></script>
-<script src="stories/abby_brave_day.js"></script>
-<script src="stories/grandma_day.js"></script>
-<script src="stories/off_to_academy.js"></script>
-<script src="stories/chinchilla_melissa.js"></script>
-<script src="stories/anna_skates.js"></script>
 <script src="engine.js"></script>
 </body>
 </html>
