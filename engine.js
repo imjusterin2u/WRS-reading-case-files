@@ -185,8 +185,28 @@ function listenOpponent(){
   const otherSlot = S.playerSlot===1?2:1;
   db.ref(`sessions/${S.code}/players/${otherSlot}`).on('value', snap=>{
     const v = snap.val();
-    if(v){ S.opponent = v; render(); }
+    if(!v) return;
+    S.opponent = v;
+    // While a question is actively in progress (MC retry-locks, sequence drag state,
+    // or the Listen/Tap/Spell steps), a full render() would wipe that local-only
+    // progress the moment the opponent's score changes. Patch just the opponent's
+    // race-bar numbers in place instead; a full render() is safe everywhere else.
+    if(S.screen==='question' && updateOpponentRaceCard()){
+      return;
+    }
+    render();
   });
+}
+function updateOpponentRaceCard(){
+  const nameEl = document.getElementById('oppRaceName');
+  const scoreEl = document.getElementById('oppRaceScore');
+  const fillEl = document.getElementById('oppRaceFill');
+  if(!nameEl || !scoreEl || !fillEl) return false; // race bar not on screen (e.g. solo mode) — fall back to render()
+  const oppPct = S.opponent.progress || 0;
+  nameEl.textContent = `🕵️ ${S.opponent.name||'Detective 2'} ${S.opponent.finished?'🏁':''}`;
+  scoreEl.textContent = `${S.opponent.score||0} pts`;
+  fillEl.style.width = oppPct + '%';
+  return true;
 }
 function makeCode(){
   const letters='ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -276,8 +296,8 @@ function raceBarHTML(){
   return `<div class="race-bar">
     ${myCard}
     <div class="race-card">
-      <div class="name"><span>🕵️ ${S.opponent.name||'Detective 2'} ${S.opponent.finished?'🏁':''}</span><span class="score">${S.opponent.score||0} pts</span></div>
-      <div class="progress-track"><div class="progress-fill" style="width:${oppPct}%"></div></div>
+      <div class="name"><span id="oppRaceName">🕵️ ${S.opponent.name||'Detective 2'} ${S.opponent.finished?'🏁':''}</span><span class="score" id="oppRaceScore">${S.opponent.score||0} pts</span></div>
+      <div class="progress-track"><div class="progress-fill" id="oppRaceFill" style="width:${oppPct}%"></div></div>
     </div>
   </div>`;
 }
