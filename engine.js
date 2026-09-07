@@ -1012,17 +1012,71 @@ function pickDecoys(correctChunks, count, substep){
   return pool.slice(0, count);
 }
 
+/* ---------------- MORPHEME-BASED SPELLING (multisyllabic words) ----------------
+   A spelling question can carry an explicit `morphemes` array instead of relying
+   on chunkWord()'s phonemic chunking — used once words split into prefix/base/
+   suffix, since that's a different kind of chunk than a blend or digraph.
+   Example: {word:'unhappy', sentence:'...', morphemes:[
+     {text:'un', type:'prefix'}, {text:'hap', type:'base'}, {text:'py', type:'base'}
+   ]}
+   Bound morphemes (prefix/suffix) render in yellow with a dash at the boundary
+   where they attach; base syllables render in white with no dash between them,
+   even when the base itself splits across more than one tile. */
+const MORPHEME_DECOY_POOL = {
+  prefix: ['un','re','dis','mis','pre','im','in','en','sub','con'],
+  suffix: ['ing','ed','er','est','ly','ful','ness','tion','able','ive'],
+};
+function pickMorphemeDecoys(morphemes, substep){
+  const decoys = [];
+  const usedPrefixes = new Set(morphemes.filter(m=>m.type==='prefix').map(m=>m.text.toLowerCase()));
+  const usedSuffixes = new Set(morphemes.filter(m=>m.type==='suffix').map(m=>m.text.toLowerCase()));
+  if(usedPrefixes.size){
+    const pool = MORPHEME_DECOY_POOL.prefix.filter(p=>!usedPrefixes.has(p)).sort(()=>Math.random()-0.5);
+    pool.slice(0,2).forEach(text=>decoys.push({text, type:'prefix'}));
+  }
+  if(usedSuffixes.size){
+    const pool = MORPHEME_DECOY_POOL.suffix.filter(p=>!usedSuffixes.has(p)).sort(()=>Math.random()-0.5);
+    pool.slice(0,2).forEach(text=>decoys.push({text, type:'suffix'}));
+  }
+  if(!decoys.length){
+    // No prefix/suffix at all (an all-base multisyllabic word) — fall back to
+    // phonemic decoys drawn from the base syllables themselves.
+    const baseChunks = morphemes.map(m=>m.text);
+    pickDecoys(baseChunks, 2, substep).forEach(text=>decoys.push({text, type:'base'}));
+  }
+  return decoys;
+}
+
 function renderSpell(r){
   const q = r.questions[S.qIdx];
-  const correctChunks = chunkWord(q.word.toLowerCase(), CURRENT_STORY_SUBSTEP);
-  const correctTiles = correctChunks.map((ch,i)=>({id:'c'+i, letter:ch, correctIndex:i}));
-  const decoyTiles = pickDecoys(correctChunks, 3, CURRENT_STORY_SUBSTEP).map((ch,i)=>({id:'d'+i, letter:ch, correctIndex:-1}));
+  const isMorphemic = Array.isArray(q.morphemes) && q.morphemes.length>0;
+  let correctChunks, correctTiles, decoyTiles, dashAfter;
+  if(isMorphemic){
+    correctChunks = q.morphemes.map(m=>m.text);
+    correctTiles = q.morphemes.map((m,i)=>({id:'c'+i, letter:m.text, correctIndex:i, morphType:m.type}));
+    decoyTiles = pickMorphemeDecoys(q.morphemes, CURRENT_STORY_SUBSTEP).map((d,i)=>({id:'d'+i, letter:d.text, correctIndex:-1, morphType:d.type}));
+    // A dash marks the boundary after slot i whenever that boundary touches a
+    // bound morpheme (prefix or suffix) — never between two base-syllable tiles.
+    dashAfter = q.morphemes.slice(0,-1).map((m,i)=> (m.type!=='base' || q.morphemes[i+1].type!=='base'));
+  } else {
+    correctChunks = chunkWord(q.word.toLowerCase(), CURRENT_STORY_SUBSTEP);
+    correctTiles = correctChunks.map((ch,i)=>({id:'c'+i, letter:ch, correctIndex:i}));
+    decoyTiles = pickDecoys(correctChunks, 3, CURRENT_STORY_SUBSTEP).map((ch,i)=>({id:'d'+i, letter:ch, correctIndex:-1}));
+    dashAfter = null;
+  }
   const allTiles = correctTiles.concat(decoyTiles);
   let trayTiles = shuffleTileLetters(allTiles);
   let slots = new Array(correctChunks.length).fill(null);
   let spellAttempt = 0;
   let lockedSlots = new Set();
   let step = 'listen'; // 'listen' -> 'tap' -> 'spell'
+
+  function tileColorClass(t){
+    return t.morphType ? 'tile-'+(t.morphType==='base'?'base':'affix') : wrsTileColorClass(t.letter, CURRENT_STORY_SUBSTEP);
+  }
+  function tapColorClass(i){
+    return isMorphemic ? 'tap-tile-'+(q.morphemes[i].type==='base'?'base':'affix') : 'tap-'+wrsTileColorClass(correctChunks[i], CURRENT_STORY_SUBSTEP);
+  }
 
   const panel = el(`<div class="panel"></div>`);
   app.appendChild(panel);
@@ -1089,7 +1143,7 @@ function renderSpell(r){
       tapRow.innerHTML='';
       correctChunks.forEach((c,i)=>{
         const dot = document.createElement('button');
-        const colorClass = i<tapped ? '' : ' tap-'+wrsTileColorClass(c, CURRENT_STORY_SUBSTEP);
+        const colorClass = i<tapped ? '' : ' '+tapColorClass(i);
         dot.className = 'tap-dot' + (i<tapped?' tapped':'') + (c.length>1?' tap-dot-multi':'') + colorClass;
         dot.textContent = (i<tapped) ? c : (i+1);
         dot.onclick = ()=>{
@@ -1147,7 +1201,7 @@ function renderSpell(r){
     }
     function makeTileEl(t, location, slotIndex, locked){
       const d = document.createElement('div');
-      d.className='tile' + (t.letter.length>1?' tile-multi':'') + ' ' + wrsTileColorClass(t.letter, CURRENT_STORY_SUBSTEP) + (locked?' tile-locked':'');
+      d.className='tile' + (t.letter.length>1?' tile-multi':'') + ' ' + tileColorClass(t) + (locked?' tile-locked':'');
       d.textContent = t.letter;
       if(locked) return d;
       let startX,startY,dragging=false,moved=false,offX=0,offY=0;
@@ -1214,6 +1268,12 @@ function renderSpell(r){
         box.dataset.slotIndex=i;
         if(tid) box.appendChild(makeTileEl(tileById(tid),'slot',i,isLocked));
         slotsEl.appendChild(box);
+        if(isMorphemic && dashAfter[i]){
+          const dash = document.createElement('div');
+          dash.className = 'morph-dash';
+          dash.textContent = '-';
+          slotsEl.appendChild(dash);
+        }
       });
       trayEl.innerHTML='';
       trayTiles.forEach(t=> trayEl.appendChild(makeTileEl(t,'tray',null,false)));
