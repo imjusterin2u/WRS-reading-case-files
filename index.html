@@ -190,6 +190,18 @@
   .tap-dot.tap-tile-welded{border-color:var(--wrs-welded-border); background:#eaf3ec;}
   .tap-dot.tap-tile-affix{border-color:var(--wrs-yellow-border); background:#fdf6dc;}
   .tap-dot.tap-tile-base{border-color:var(--paper-line); background:var(--paper);}
+  .tap-dot.small{width:34px; height:34px; font-size:14px;}
+  .syllable-cards{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; align-items:flex-start; margin:18px 0;}
+  .syllable-card{
+    border:2px dashed var(--paper-line); border-radius:10px; padding:10px 12px;
+    min-width:80px; text-align:center; background:rgba(255,255,255,0.35);
+  }
+  .syllable-card.tile-affix{border-color:var(--wrs-yellow-border); background:#fdf6dc;}
+  .syllable-card.tile-base{border-color:var(--paper-line); background:var(--paper);}
+  .syllable-card.syl-active{border-style:solid; box-shadow:0 0 0 2px var(--brass);}
+  .syllable-card.syl-done{opacity:0.7;}
+  .syllable-card-label{font-size:11px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:var(--pencil); margin-bottom:6px;}
+  .syllable-card-dots{display:flex; gap:4px; justify-content:center; flex-wrap:wrap;}
   .tap-dot.tap-dot-multi{font-size:16px; letter-spacing:0.5px;}
 
   .story-grid{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); margin:16px 0;}
