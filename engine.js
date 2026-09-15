@@ -1097,7 +1097,7 @@ function unlockedTilesForSubstep(substep){
   return map;
 }
 
-function chunkWord(word, substep){
+function chunkWord(word, substep, excludePatterns){
   // Chunk using every multi-letter pattern the student has actually been
   // taught by this story's substep — digraphs, welded sounds, vowel
   // teams, suffix chunks — longest match first. If no substep is given,
@@ -1111,12 +1111,21 @@ function chunkWord(word, substep){
   //
   // Welded sounds like am/an/all stay welded wherever they appear once
   // taught — e.g. "branch" chunks as br-an-ch, not b-r-a-n-ch.
+  //
+  // The five closed-syllable EXCEPTIONS (ild/ind/old/olt/ost) are only
+  // welded when they carry the long-vowel exception sound they're taught
+  // for (mind, cold, most) — not every word that happens to contain those
+  // letters (frost, windmill both use the short-vowel regular pronunciation,
+  // same as "lost"/"wind" the weather noun). Pass excludePatterns for those
+  // specific words/morphemes so they fall back to plain letter-by-letter
+  // chunking instead of an incorrect weld.
   const allPatterns = new Set();
   if(substep){
     unlockedTilesForSubstep(substep).forEach((color,p)=>{ if(p.length>1) allPatterns.add(p); });
   } else {
     WRS_PROGRESSION.forEach(tier=> tier.add.forEach(([p])=>{ if(p.length>1) allPatterns.add(p); }));
   }
+  if(excludePatterns) excludePatterns.forEach(p=>allPatterns.delete(p));
   const byLength = Array.from(allPatterns).sort((a,b)=>b.length-a.length);
   const chunks = [];
   let i=0;
@@ -1205,7 +1214,7 @@ function renderSpell(r){
     // bound morpheme (prefix or suffix) — never between two base-syllable tiles.
     dashAfter = q.morphemes.slice(0,-1).map((m,i)=> (m.type!=='base' || q.morphemes[i+1].type!=='base'));
   } else {
-    correctChunks = chunkWord(q.word.toLowerCase(), CURRENT_STORY_SUBSTEP);
+    correctChunks = chunkWord(q.word.toLowerCase(), CURRENT_STORY_SUBSTEP, q.excludeWeld);
     correctTiles = correctChunks.map((ch,i)=>({id:'c'+i, letter:ch, correctIndex:i}));
     decoyTiles = pickDecoys(correctChunks, 3, CURRENT_STORY_SUBSTEP).map((ch,i)=>({id:'d'+i, letter:ch, correctIndex:-1}));
     dashAfter = null;
@@ -1347,7 +1356,7 @@ function renderSpell(r){
   function drawTapMorphemic(){
     let sylPhase = 'count'; // 'count' -> 'cards'
     let sylGuessAttempts = 0;
-    const cardSounds = q.morphemes.map(m => chunkWord(m.text.toLowerCase(), CURRENT_STORY_SUBSTEP));
+    const cardSounds = q.morphemes.map(m => chunkWord(m.text.toLowerCase(), CURRENT_STORY_SUBSTEP, m.excludeWeld));
     let cardIdx = 0;
     let tappedInCard = 0;
 
