@@ -108,7 +108,7 @@ const ROUNDS_PONY_RIDE = [
     type:'spell', points:15,
     questions:[
       {word:'request', sentence:'Sally made this request many times.', morphemes:[{text:'re',type:'prefix'}, {text:'quest',type:'base'}]},
-      {word:'windmill', sentence:'There is a tall windmill by the shed.', morphemes:[{text:'wind',type:'base'}, {text:'mill',type:'base'}]},
+      {word:'windmill', sentence:'There is a tall windmill by the shed.', morphemes:[{text:'wind',type:'base',excludeWeld:['ind']}, {text:'mill',type:'base'}]},
       {word:'prepare', sentence:'Sally had a lesson to prepare.', morphemes:[{text:'pre',type:'prefix'}, {text:'pare',type:'base'}]},
       {word:'jumbo', sentence:'She spots a jumbo pig.', morphemes:[{text:'jum',type:'base'}, {text:'bo',type:'base'}]},
       {word:'pony', sentence:'Sally rides the pony named Benny.', morphemes:[{text:'po',type:'base'}, {text:'ny',type:'base'}]},
@@ -124,8 +124,8 @@ const ROUNDS_PONY_RIDE = [
     questions:[
       {context:'request', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
         explain:'Request breaks into two syllable chunks: re-quest, an open syllable followed by a closed syllable.'},
-      {context:'windmill', prompt:'Which letters form the welded chunk?', options:['wi','ind','mi','ll'], answer:1,
-        explain:'"Ind" is a welded sound taught as one unit — it stays glued together wherever it shows up, including inside windmill.'},
+      {context:'windmill', prompt:'Which two smaller words combine to form this compound word?', options:['wind + mill','win + dmill','wi + ndmill','windmi + ll'], answer:0,
+        explain:'Windmill is a compound word made of two smaller words: wind and mill. Note: this "wind" has a short i sound, like the weather word — not the long-i welded chunk you would hear in "mind" or "find."'},
       {context:'windmill', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
         explain:'Windmill breaks into two chunks: wind-mill, both closed syllables — it\'s a compound word made of two smaller words.'},
       {context:'prepare', prompt:'How many syllables does this word have?', options:['1','2','3','4'], answer:1,
