@@ -25,43 +25,144 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "485219482921",
   appId: "1:485219482921:web:c4cd49eef792195fd00b38"
 };
-const DEFAULT_TEACHER_PIN = "2468"; // fallback only — used until you set your own PIN below
-function getTeacherPin(){
-  return localStorage.getItem('brads_bad_day_teacher_pin') || DEFAULT_TEACHER_PIN;
+/* ---------------- TEACHER ACCOUNT (syncs across devices via Firebase) ----------------
+   A teacher's PIN and identity now live in Firebase, keyed by a stable teacherId, so
+   signing in on a second device recognizes the same account instead of creating a new
+   local-only one. Each device still caches teacherId/name locally (so you're not
+   re-typing your name every time), but the PIN itself is always checked against the
+   Firebase record — that's what makes it the same PIN everywhere.
+     teacherAccounts/{teacherId}   = {name, pin, createdAt}
+     teacherNameIndex/{nameSlug}   = teacherId   — lets a NEW device find an existing
+                                                    account by the name you type in
+   If Firebase isn't connected, this falls back to the old device-only PIN so Teacher
+   Tools still works offline — it just won't sync until you're back online. */
+const DEFAULT_TEACHER_PIN = "2468"; // offline fallback only — used until you set your own PIN below
+function slugifyTeacherName(name){
+  return (name||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || 'teacher';
 }
-function setTeacherPin(newPin){
-  localStorage.setItem('brads_bad_day_teacher_pin', newPin);
-}
-function hasCustomPin(){
-  return !!localStorage.getItem('brads_bad_day_teacher_pin');
-}
-
-/* ---------------- TEACHER PROFILE (per-device identity for separated assignments) ----------------
-   Each teacher's device gets its own teacherId, generated once and stored locally. Solo
-   assignments are tagged with this id so a teacher's "My Assignments" list in Teacher Tools
-   only ever shows what THEY created — even though everyone shares one Firebase project. */
 function getTeacherId(){
   return localStorage.getItem('brads_bad_day_teacher_id') || '';
 }
 function getTeacherName(){
   return localStorage.getItem('brads_bad_day_teacher_name') || '';
 }
-function setTeacherProfile(name){
-  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || 'teacher';
-  const id = slug + '-' + Math.random().toString(36).slice(2,6);
-  localStorage.setItem('brads_bad_day_teacher_name', name.trim());
-  localStorage.setItem('brads_bad_day_teacher_id', id);
-  return id;
+function cacheTeacherLocally(teacherId, name){
+  localStorage.setItem('brads_bad_day_teacher_id', teacherId);
+  localStorage.setItem('brads_bad_day_teacher_name', name);
 }
-function renameTeacherDisplayName(name){
+// Offline-only fallback PIN (device-local), used solely when Firebase isn't reachable.
+function getLocalFallbackPin(){
+  return localStorage.getItem('brads_bad_day_teacher_pin') || DEFAULT_TEACHER_PIN;
+}
+function setLocalFallbackPin(pin){
+  localStorage.setItem('brads_bad_day_teacher_pin', pin);
+}
+
+/* Finds or creates this teacher's account by name, confirms identity with the existing
+   PIN if the account already exists (e.g. set up on another device), and caches the
+   result locally. Returns the teacherId on success, or null if the person cancels out. */
+async function resolveTeacherAccount(promptMessage){
+  const name = prompt(promptMessage || 'Enter your name to set up (or sign back into) your teacher account:');
+  if(!name || !name.trim()) return null;
+  const slug = slugifyTeacherName(name);
+
+  if(!FIREBASE_OK){
+    alert("Firebase isn't connected, so this account can only be used on this device for now — it'll sync once you're back online.");
+    const teacherId = slug + '-' + Math.random().toString(36).slice(2,6);
+    cacheTeacherLocally(teacherId, name.trim());
+    return teacherId;
+  }
+
+  const indexSnap = await db.ref(`teacherNameIndex/${slug}`).once('value');
+  const existingId = indexSnap.val();
+
+  if(existingId){
+    const accountSnap = await db.ref(`teacherAccounts/${existingId}`).once('value');
+    const account = accountSnap.val();
+    if(!account){ alert('Could not load that account — check your connection and try again.'); return null; }
+    const pin = prompt(`An account for "${account.name}" already exists. Enter its PIN to sign in on this device:`);
+    if(pin===null) return null;
+    if(pin !== account.pin){
+      alert('Incorrect PIN for that account.');
+      return null;
+    }
+    cacheTeacherLocally(existingId, account.name);
+    return existingId;
+  }
+
+  const newPin = prompt('No account found under that name yet. Create a PIN for your new account (4+ digits):');
+  if(!newPin || newPin.trim().length<4){ alert('PIN must be at least 4 characters — account not created.'); return null; }
+  const teacherId = slug + '-' + Math.random().toString(36).slice(2,6);
+  await db.ref(`teacherAccounts/${teacherId}`).set({name:name.trim(), pin:newPin.trim(), createdAt:Date.now()});
+  await db.ref(`teacherNameIndex/${slug}`).set(teacherId);
+  cacheTeacherLocally(teacherId, name.trim());
+  return teacherId;
+}
+
+/* Checks the PIN typed against the account's real PIN (Firebase, so it's the same
+   value on every device). Offers a self-service "Forgot PIN?" reset on a mismatch. */
+async function verifyTeacherPin(){
+  if(!FIREBASE_OK){
+    if(!localStorage.getItem('brads_bad_day_teacher_pin')){
+      const p1 = prompt('No teacher PIN is set yet for this device. Create one now (4+ digits):');
+      if(p1===null) return false;
+      if(p1.trim().length<4){ alert('PIN must be at least 4 characters. Try again.'); return false; }
+      setLocalFallbackPin(p1.trim());
+      alert("Firebase isn't connected right now, so this PIN is device-only until you're back online.");
+    }
+    const pin = prompt('Teacher PIN:');
+    if(pin===null) return false;
+    if(pin!==getLocalFallbackPin()){ alert('Incorrect PIN.'); return false; }
+    return true;
+  }
+
+  const accountSnap = await db.ref(`teacherAccounts/${getTeacherId()}`).once('value');
+  let account = accountSnap.val();
+  if(!account){
+    // This teacherId was cached locally before cross-device sync existed — migrate it
+    // into Firebase now, reusing whatever PIN this device already had (if any), so the
+    // PIN you already know keeps working and nothing changes for you.
+    const migratedPin = localStorage.getItem('brads_bad_day_teacher_pin') || DEFAULT_TEACHER_PIN;
+    account = {name: getTeacherName() || 'Teacher', pin: migratedPin, createdAt: Date.now()};
+    await db.ref(`teacherAccounts/${getTeacherId()}`).set(account);
+    await db.ref(`teacherNameIndex/${slugifyTeacherName(account.name)}`).set(getTeacherId());
+  }
+
+  const pin = prompt('Teacher PIN:');
+  if(pin===null) return false;
+  if(pin === account.pin) return true;
+
+  const wantsReset = confirm("Incorrect PIN. Forgot it? Click OK to reset your PIN now (you'll confirm your name first).");
+  if(!wantsReset) return false;
+  return await forgotPinFlow(getTeacherId(), account);
+}
+
+async function forgotPinFlow(teacherId, account){
+  const nameCheck = prompt(`To reset your PIN, type your teacher name again to confirm it's you (currently saved as "${account.name}"):`);
+  if(!nameCheck) return false;
+  if(slugifyTeacherName(nameCheck) !== slugifyTeacherName(account.name)){
+    alert("That name doesn't match this account — PIN not reset.");
+    return false;
+  }
+  const newPin = prompt('Enter a new PIN (4+ digits):');
+  if(!newPin || newPin.trim().length<4){ alert('PIN must be at least 4 characters — not changed.'); return false; }
+  await db.ref(`teacherAccounts/${teacherId}`).update({pin:newPin.trim()});
+  alert('PIN reset! Your new PIN now works on any device you sign into.');
+  return true;
+}
+
+async function renameTeacherDisplayName(name){
   // Keeps the same teacherId (so past assignments stay attached) — just updates the label.
-  localStorage.setItem('brads_bad_day_teacher_name', name.trim());
+  // Also adds a name-index entry under the new name, so a future device can find this
+  // account either by the old name or the new one.
+  const trimmed = name.trim();
+  cacheTeacherLocally(getTeacherId(), trimmed);
+  if(FIREBASE_OK){
+    await db.ref(`teacherAccounts/${getTeacherId()}`).update({name:trimmed});
+    await db.ref(`teacherNameIndex/${slugifyTeacherName(trimmed)}`).set(getTeacherId());
+  }
 }
-function ensureTeacherProfile(){
-  if(getTeacherId()) return getTeacherId();
-  const name = prompt('One-time setup: whose name should your assignments be saved under? (e.g. your name or initials)');
-  return setTeacherProfile(name && name.trim() ? name.trim() : 'Teacher');
-}
+
 
 /* ---------------- VOICE SELECTION (text-to-speech) ---------------- */
 function getSelectedVoiceURI(){
@@ -1643,18 +1744,18 @@ function renderFinished(){
 }
 
 /* ---------------- TEACHER TOOLS ---------------- */
-function openTeacher(){
-  if(!hasCustomPin()){
-    const p1 = prompt('No teacher PIN is set yet. Create one now (4+ digits):');
-    if(p1===null) return;
-    if(p1.trim().length<4){ alert('PIN must be at least 4 characters. Try again.'); return; }
-    setTeacherPin(p1.trim());
-    alert('Teacher PIN set! Use it from now on to open Teacher Tools on this device/browser.');
+async function openTeacher(){
+  try{
+    if(!getTeacherId()){
+      const id = await resolveTeacherAccount('One-time setup: enter your name to create (or sign into) your teacher account. Your PIN will then work on any device you sign into.');
+      if(!id) return;
+    }
+    const ok = await verifyTeacherPin();
+    if(!ok) return;
+  } catch(err){
+    alert("Couldn't reach the account server — check your connection and try again.");
+    return;
   }
-  const pin = prompt('Teacher PIN:');
-  if(pin===null) return;
-  if(pin!==getTeacherPin()){ alert('Incorrect PIN.'); return; }
-  ensureTeacherProfile();
   const bg = el(`<div class="modal-bg"><div class="modal">
     <h2 class="type">🕵️ Teacher Tools</h2>
     <p class="small">Firebase status: ${FIREBASE_OK?'Connected ✅':'Not connected — offline mode ⚠️'}</p>
@@ -1715,16 +1816,27 @@ function openTeacher(){
     speakText('The brisk, cold wind blew past the front step.', 0.85);
   };
   document.getElementById('printReportBtn').onclick = printReport;
-  document.getElementById('changePinBtn').onclick=()=>{
+  document.getElementById('changePinBtn').onclick=async ()=>{
     const newPin = prompt('Enter a new teacher PIN (4+ digits):');
-    if(newPin && newPin.trim().length>=4){ setTeacherPin(newPin.trim()); alert('PIN updated.'); }
-    else if(newPin!==null){ alert('PIN must be at least 4 characters — not changed.'); }
+    if(!newPin) return;
+    if(newPin.trim().length<4){ alert('PIN must be at least 4 characters — not changed.'); return; }
+    if(FIREBASE_OK){
+      try{
+        await db.ref(`teacherAccounts/${getTeacherId()}`).update({pin:newPin.trim()});
+        alert('PIN updated — this new PIN now works on any device you sign into.');
+      } catch(err){
+        alert("Couldn't reach the account server — PIN not changed. Check your connection and try again.");
+      }
+    } else {
+      setLocalFallbackPin(newPin.trim());
+      alert("Firebase isn't connected, so this PIN change is device-only until you're back online.");
+    }
   };
   function wireRenameBtn(){
-    document.getElementById('renameTeacherBtn').onclick=()=>{
+    document.getElementById('renameTeacherBtn').onclick=async ()=>{
       const name = prompt('Display name for your assignments:', getTeacherName());
       if(name && name.trim()){
-        renameTeacherDisplayName(name.trim());
+        await renameTeacherDisplayName(name.trim());
         document.getElementById('teacherNameLine').innerHTML =
           `<b>👤 Assignments saved under:</b> ${getTeacherName()} <button class="btn ghost" id="renameTeacherBtn" style="padding:3px 9px; font-size:11px; margin-left:6px;">Rename</button>`;
         wireRenameBtn();
