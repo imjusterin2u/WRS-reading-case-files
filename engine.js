@@ -1225,6 +1225,11 @@ function renderSpell(r){
   }
 
   function drawTap(){
+    if(isMorphemic) drawTapMorphemic();
+    else drawTapPhonemic();
+  }
+
+  function drawTapPhonemic(){
     let tapped = 0;
     panel.innerHTML = `
       <h2>${r.icon} ${r.title}</h2>
@@ -1263,6 +1268,102 @@ function renderSpell(r){
     drawTaps();
     panel.querySelector('#hearAgainBtn').onclick = playWordSequence;
     toSpellBtn.onclick = ()=>{ step='spell'; drawStep(); };
+  }
+
+  /* Step 3+ words shift focus from individual sounds to word PARTS: the student
+     first determines how many syllables the word has (with feedback, not just told),
+     then works through one blank syllable card at a time — saying the syllable, then
+     tapping the sounds inside it in order — before moving to the next card. */
+  function drawTapMorphemic(){
+    let sylPhase = 'count'; // 'count' -> 'cards'
+    let sylGuessAttempts = 0;
+    const cardSounds = q.morphemes.map(m => chunkWord(m.text.toLowerCase(), CURRENT_STORY_SUBSTEP));
+    let cardIdx = 0;
+    let tappedInCard = 0;
+
+    function drawSylStep(){
+      if(sylPhase==='count') drawSylCount();
+      else drawSylCards();
+    }
+
+    function drawSylCount(){
+      const maxButtons = Math.max(6, q.morphemes.length+2);
+      panel.innerHTML = `
+        <h2>${r.icon} ${r.title}</h2>
+        <p class="small">Word ${S.qIdx+1} of ${r.questions.length}</p>
+        ${stepTrack('tap')}
+        <div class="question-prompt" style="text-align:center;">Step 2 — Pause &amp; Tap</div>
+        <p style="text-align:center;">Listen again if you need to. Then figure out how many syllables (word parts) this word breaks into.</p>
+        <div class="center"><button class="btn ghost" id="hearAgainBtn">🔊 Hear it again</button></div>
+        <div class="center" style="margin:18px 0 8px;"><b>How many syllables?</b></div>
+        <div class="row" style="justify-content:center;">
+          ${Array.from({length:maxButtons},(_,i)=>i+1).map(n=>`<button class="tool-btn" data-n="${n}" style="min-width:44px;">${n}</button>`).join('')}
+        </div>
+        <p class="tile-hint" id="sylCountHint" style="margin-top:10px;">Say the word slowly and count the parts you hear.</p>
+      `;
+      panel.querySelector('#hearAgainBtn').onclick = playWordSequence;
+      panel.querySelectorAll('[data-n]').forEach(btn=>{
+        btn.onclick = ()=>{
+          const n = parseInt(btn.dataset.n);
+          if(n === q.morphemes.length){
+            stamp('correct');
+            sylPhase='cards';
+            drawSylStep();
+          } else {
+            sylGuessAttempts++;
+            stamp('wrong');
+            panel.querySelector('#sylCountHint').textContent = sylGuessAttempts>=2
+              ? `This word has ${q.morphemes.length} syllables — say each part out loud, then tap ${q.morphemes.length}.`
+              : 'Not quite — say the word slowly, part by part, and try again.';
+          }
+        };
+      });
+    }
+
+    function drawSylCards(){
+      const allDone = cardIdx >= q.morphemes.length;
+      panel.innerHTML = `
+        <h2>${r.icon} ${r.title}</h2>
+        <p class="small">Word ${S.qIdx+1} of ${r.questions.length}</p>
+        ${stepTrack('tap')}
+        <div class="question-prompt" style="text-align:center;">Step 2 — Pause &amp; Tap</div>
+        <p style="text-align:center;">Say each syllable out loud, then tap its cards to spell out the sounds inside it.</p>
+        <div class="center"><button class="btn ghost" id="hearAgainBtn">🔊 Hear it again</button></div>
+        <div class="syllable-cards" id="sylCards"></div>
+        <p class="tile-hint" id="sylHint">${allDone ? 'All syllables tapped — nice work!' : `Say syllable ${cardIdx+1} out loud, then tap its sound cards in order.`}</p>
+        <div class="center" style="margin-top:14px;"><button class="btn" id="toSpellBtn" ${allDone?'':'disabled'}>Next: Spell with Cards →</button></div>
+      `;
+      panel.querySelector('#hearAgainBtn').onclick = playWordSequence;
+      const container = panel.querySelector('#sylCards');
+      container.innerHTML = q.morphemes.map((m,mi)=>{
+        const sounds = cardSounds[mi];
+        const isDone = mi < cardIdx;
+        const isActive = mi === cardIdx;
+        const typeClass = 'tile-'+(m.type==='base'?'base':'affix');
+        const dotsHtml = sounds.map((s,si)=>{
+          const tapped = isDone || (isActive && si<tappedInCard);
+          const colorClass = tapped ? '' : ' tap-tile-'+(m.type==='base'?'base':'affix');
+          return `<span class="tap-dot small${tapped?' tapped':''}${colorClass}" data-morph="${mi}" data-sound="${si}">${tapped ? s : si+1}</span>`;
+        }).join('');
+        return `<div class="syllable-card ${typeClass}${isDone?' syl-done':''}${isActive?' syl-active':''}">
+          <div class="syllable-card-label">Syllable ${mi+1}</div>
+          <div class="syllable-card-dots">${dotsHtml}</div>
+        </div>`;
+      }).join('');
+      container.querySelectorAll('[data-morph]').forEach(dot=>{
+        dot.onclick = ()=>{
+          const mi = parseInt(dot.dataset.morph);
+          const si = parseInt(dot.dataset.sound);
+          if(mi!==cardIdx || si!==tappedInCard) return; // must tap current card, in order
+          tappedInCard++;
+          if(tappedInCard >= cardSounds[cardIdx].length){ cardIdx++; tappedInCard=0; }
+          drawSylCards();
+        };
+      });
+      panel.querySelector('#toSpellBtn').onclick = ()=>{ step='spell'; drawStep(); };
+    }
+
+    drawSylStep();
   }
 
   function drawSpell(){
