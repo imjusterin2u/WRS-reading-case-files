@@ -235,6 +235,7 @@ let S = {
   assignmentStudentId:null, // stable roster id, when the assignment came from a roster pick
   rankRecorded:false, // guards against double-writing the best-rank record on re-render
   bestRank:null,       // {label, icon, pct, sessionsCompleted} once fetched from studentRecords
+  lockedUpSuspects:null, // {storyId: true, ...} once fetched from studentRecords
   code:null,
   playerSlot:null,    // 1 or 2
   name:'',
@@ -446,6 +447,7 @@ function render(){
   if(S.screen==='roundIntro') return renderRoundIntro();
   if(S.screen==='question') return renderQuestion();
   if(S.screen==='finished') return renderFinished();
+  if(S.screen==='detectiveBoard') return renderDetectiveBoard();
 }
 
 function renderStoryPicker(){
@@ -673,6 +675,45 @@ const WARMUP_POINTS = 10;
    other. "Highest rank achieved" persists per student (keyed by teacher +
    student name) so it can show up on the printed report over time, without
    needing a login system or a full running point total. */
+/* ---------------- SUSPECT BOARD (persistent "cases closed" collection) ----------------
+   Each story unlocks one fixed, lighthearted "suspect" on completion — purely a game-layer
+   reward, unrelated to the actual passage content, so it never touches lesson accuracy.
+   Same story always unlocks the same suspect (indexed by position in STORY_ORDER), so a
+   student's collection feels complete and collectible rather than random. */
+const SUSPECTS = [
+  {name:"Sammy \"Sawdust\" Malone", crime:"Swiped the neighborhood's favorite hammer", icon:'🔨'},
+  {name:"The Umbrella Bandit", crime:"Stole every umbrella on the block", icon:'☂️'},
+  {name:"Gary the Gull", crime:"Snatched snacks right off the beach blanket", icon:'🍟'},
+  {name:"Prank Call Pete", crime:"Made a hundred prank calls in one day", icon:'📞'},
+  {name:"The Bait Thief", crime:"Emptied every tackle box in town", icon:'🎣'},
+  {name:"Mulch Marv", crime:"Buried the whole yard in mismatched mulch", icon:'🌱'},
+  {name:"The Homework Hijacker", crime:"Swapped answer keys at the library", icon:'📚'},
+  {name:"Napkin Ned", crime:"Hoarded every napkin in the cafeteria", icon:'🧻'},
+  {name:"The Snack Snatcher", crime:"Raided the vending machine at midnight", icon:'🍫'},
+  {name:"Fast-Feet Frankie", crime:"False-started every race in the district", icon:'🏃'},
+  {name:"The Lamp-Post Looter", crime:"Unscrewed every bulb on the common", icon:'💡'},
+  {name:"Glitter Gus", crime:"Left a glitter trail across three counties", icon:'✨'},
+  {name:"The Beaker Bandit", crime:"Swapped the lab's water samples for soda", icon:'🧪'},
+  {name:"Sandy Sam", crime:"Smuggled sand out of a marine sanctuary", icon:'🏖️'},
+  {name:"The Bone Burglar", crime:"Tried to sneak a fossil out in a backpack", icon:'🦴'},
+  {name:"Backpack Betty", crime:"Collected other kids' lunches \"by mistake\"", icon:'🎒'},
+  {name:"The Podium Poacher", crime:"Hid the microphone before the big vote", icon:'🎤'},
+  {name:"The Recipe Robber", crime:"Copied a bakery's secret recipe", icon:'🥐'},
+  {name:"Hay-Bale Hank", crime:"Rearranged every stable on the ranch overnight", icon:'🐴'},
+  {name:"The Squeaky-Toy Smuggler", crime:"Buried every dog toy in the yard", icon:'🐾'},
+  {name:"The Ball Thief", crime:"Pocketed golf balls off every green in town", icon:'⛳'},
+  {name:"The Firehose Phantom", crime:"Rerouted a fire hydrant for a water-balloon fight", icon:'💦'},
+  {name:"The Cookie Crook", crime:"Emptied Grandma's cookie jar in one visit", icon:'🍪'},
+  {name:"The Locker Looter", crime:"Swapped every locker combo at the academy", icon:'🔒'},
+  {name:"The Fur Thief", crime:"Tried to sneak a chinchilla out in a coat pocket", icon:'🐹'},
+  {name:"The Ice Impersonator", crime:"Faked a gold medal routine on roller skates", icon:'⛸️'},
+];
+function suspectForStory(storyId){
+  const idx = STORY_ORDER.indexOf(storyId);
+  if(idx<0 || idx>=SUSPECTS.length) return {name:'Unknown Suspect', crime:'Case details sealed', icon:'❓'};
+  return SUSPECTS[idx];
+}
+
 const RANK_TIERS = [
   {label:'Trainee Detective',  icon:'🔍', minPct:0},
   {label:'Junior Detective',   icon:'🕵️', minPct:50},
@@ -695,9 +736,10 @@ function rankForScore(score){
 function rankTierIndex(label){
   return RANK_TIERS.findIndex(t=>t.label===label);
 }
-/* Writes a new personal-best rank only if it beats the stored one; always bumps sessionsCompleted.
-   Only runs for sessions that started from a teacher assignment link AND carry a studentId from
-   the roster — that's the only case where identity is stable (no typo/rename risk). */
+/* Writes a new personal-best rank only if it beats the stored one; always bumps sessionsCompleted
+   and adds this case's suspect to the collection. Only runs for sessions that started from a
+   teacher assignment link AND carry a studentId from the roster — that's the only case where
+   identity is stable (no typo/rename risk). */
 function recordRankIfNeeded(rank){
   if(!FIREBASE_OK || !S.assignmentTeacherId || !S.assignmentStudentId || S.rankRecorded) return;
   S.rankRecorded = true;
@@ -707,6 +749,7 @@ function recordRankIfNeeded(rank){
     const newIdx = rankTierIndex(rank.label);
     const oldIdx = existing ? rankTierIndex(existing.bestRankLabel) : -1;
     const isNewBest = !existing || newIdx > oldIdx || (newIdx===oldIdx && rank.pct > (existing.bestRankPct||0));
+    const lockedUpSuspects = Object.assign({}, existing && existing.lockedUpSuspects, {[S.storyId]: true});
     const payload = {
       studentName: S.name,
       bestRankLabel: isNewBest ? rank.label : existing.bestRankLabel,
@@ -714,10 +757,12 @@ function recordRankIfNeeded(rank){
       bestRankPct: isNewBest ? rank.pct : existing.bestRankPct,
       lastStoryId: S.storyId,
       lastPlayed: Date.now(),
-      sessionsCompleted: (existing && existing.sessionsCompleted || 0) + 1
+      sessionsCompleted: (existing && existing.sessionsCompleted || 0) + 1,
+      lockedUpSuspects,
     };
     ref.set(payload).then(()=>{
       S.bestRank = {label:payload.bestRankLabel, icon:payload.bestRankIcon, pct:payload.bestRankPct, sessionsCompleted:payload.sessionsCompleted};
+      S.lockedUpSuspects = lockedUpSuspects;
       render();
     });
   });
@@ -1810,6 +1855,7 @@ function nextRound(){
 
 function renderFinished(){
   const rank = rankForScore(S.score);
+  const suspect = suspectForStory(S.storyId);
   if(S.assignmentTeacherId) recordRankIfNeeded(rank);
   app.appendChild(el(masthead()));
   app.appendChild(el(`
@@ -1826,6 +1872,13 @@ function renderFinished(){
               : `<div class="small" style="margin-top:6px; font-style:italic;">Checking personal best…</div>`)
           : ''}
       </div>
+      <div class="suspect-box">
+        <div class="suspect-box-title">🚔 SUSPECT APPREHENDED</div>
+        <div class="suspect-box-icon">${suspect.icon}</div>
+        <div class="suspect-box-name">${suspect.name}</div>
+        <div class="suspect-box-crime">${suspect.crime}</div>
+      </div>
+      ${S.assignmentStudentId ? `<div class="center" style="margin-top:10px;"><button class="btn ghost" id="viewBoardBtn" ${S.lockedUpSuspects?'':'disabled'}>${S.lockedUpSuspects?'🚔 View My Detective Board':'Loading your board…'}</button></div>` : ''}
     </div>
   `));
   if(S.mode==='solo'){
@@ -1861,17 +1914,56 @@ function renderFinished(){
     `));
   }
   app.appendChild(el(`<div class="center" style="margin-top:18px;"><button class="btn ghost" id="newCaseBtn">🗂️ Start a New Case</button></div>`));
+  if(S.assignmentStudentId && S.lockedUpSuspects){
+    document.getElementById('viewBoardBtn').onclick = ()=>{ S.screen='detectiveBoard'; render(); };
+  }
   document.getElementById('newCaseBtn').onclick=()=>{
     stopBot();
     S.screen='storyPicker'; S.mode=null; S.pendingMode=null; S.botDifficulty=null;
     S.assignmentTeacherId=null; S.assignmentStudentId=null; S.code=null; S.storyId=null;
-    S.rankRecorded=false; S.bestRank=null;
+    S.rankRecorded=false; S.bestRank=null; S.lockedUpSuspects=null;
     S.opponent={name:'Detective 2', score:0, roundIdx:0, finished:false};
     S.roundIdx=0; S.qIdx=0; S.score=0; S.seqSetIdx=0; S.seqOrder=[];
     S.finished=false; S.finishTime=null; S.answerLog=[];
     render();
   };
 }
+
+/* Full collection view — every story's suspect, caught or still at large. Only reachable
+   from the finish screen of a tracked (assignment-link) session, since it reads S.lockedUpSuspects
+   which is only ever populated for those sessions. */
+function renderDetectiveBoard(){
+  app.appendChild(el(masthead()));
+  const collected = S.lockedUpSuspects || {};
+  const total = STORY_ORDER.length;
+  const count = STORY_ORDER.filter(sid=>collected[sid]).length;
+  const cardsHtml = STORY_ORDER.map((sid,i)=>{
+    const suspect = SUSPECTS[i] || suspectForStory(sid);
+    const isCaught = !!collected[sid];
+    return isCaught
+      ? `<div class="suspect-card caught">
+          <div class="suspect-card-icon">${suspect.icon}</div>
+          <div class="suspect-card-name">${suspect.name}</div>
+          <div class="suspect-card-crime">${suspect.crime}</div>
+          <div class="suspect-card-status">✅ Locked Up</div>
+        </div>`
+      : `<div class="suspect-card">
+          <div class="suspect-card-icon">🔒</div>
+          <div class="suspect-card-name">Case Unsolved</div>
+          <div class="suspect-card-status">Still at large</div>
+        </div>`;
+  }).join('');
+  app.appendChild(el(`
+    <div class="panel">
+      <h2>🚔 My Detective Board</h2>
+      <p><b>${count} of ${total}</b> suspects locked up. Close more cases to fill the board!</p>
+      <div class="suspect-grid">${cardsHtml}</div>
+      <div class="center" style="margin-top:18px;"><button class="btn ghost" id="boardBackBtn">← Back</button></div>
+    </div>
+  `));
+  document.getElementById('boardBackBtn').onclick = ()=>{ S.screen='storyPicker'; render(); };
+}
+
 
 /* ---------------- TEACHER TOOLS ---------------- */
 async function openTeacher(){
@@ -2066,8 +2158,10 @@ function loadMyStudents(){
         const rankBit = rec
           ? `${rec.bestRankIcon} ${rec.bestRankLabel} · ${rec.sessionsCompleted} case${rec.sessionsCompleted===1?'':'s'} completed`
           : 'No cases completed yet';
+        const suspectCount = rec && rec.lockedUpSuspects ? Object.keys(rec.lockedUpSuspects).filter(k=>rec.lockedUpSuspects[k]).length : 0;
+        const suspectBit = rec ? ` · 🚔 ${suspectCount}/${SUSPECTS.length} suspects` : '';
         return `<div class="small" style="border-bottom:1px solid var(--paper-line); padding:6px 0; display:flex; justify-content:space-between; align-items:center; gap:8px;">
-          <span><b>${s.name}</b> — ${rankBit}</span>
+          <span><b>${s.name}</b> — ${rankBit}${suspectBit}</span>
           <button class="btn ghost" data-delstudent="${s.id}" style="padding:4px 10px; font-size:11px; flex:0 0 auto;">Remove</button>
         </div>`;
       }).join('');
