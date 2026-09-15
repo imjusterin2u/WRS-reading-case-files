@@ -275,6 +275,25 @@
     margin:14px auto 4px; padding:14px 20px; max-width:320px; border:2px solid var(--brass);
     border-radius:10px; background:#fbf7ec;
   }
+  .suspect-box{
+    margin:16px auto 4px; padding:16px 20px; max-width:340px; border:3px dashed var(--red-dark);
+    border-radius:10px; background:#fdf6ee; text-align:center;
+  }
+  .suspect-box-title{font-family:'Special Elite',monospace; font-size:14px; letter-spacing:.05em; color:var(--red-dark); margin-bottom:6px;}
+  .suspect-box-icon{font-size:36px;}
+  .suspect-box-name{font-family:'Special Elite',monospace; font-size:17px; color:var(--ink); margin-top:4px;}
+  .suspect-box-crime{font-size:13px; color:#6b6555; margin-top:2px;}
+  .suspect-grid{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); margin:16px 0;}
+  .suspect-card{
+    background:#f3efe4; border:2px dashed var(--paper-line); border-radius:10px; padding:14px;
+    text-align:center; opacity:0.6;
+  }
+  .suspect-card.caught{background:#fbf7ec; border:2px solid var(--brass); opacity:1;}
+  .suspect-card-icon{font-size:30px;}
+  .suspect-card-name{font-family:'Special Elite',monospace; font-size:14px; color:var(--ink); margin-top:4px;}
+  .suspect-card-crime{font-size:11px; color:#6b6555; margin-top:2px;}
+  .suspect-card-status{font-size:11px; font-weight:700; margin-top:6px; color:var(--green);}
+  .suspect-card:not(.caught) .suspect-card-status{color:#6b6555;}
   .teacher-toggle{
     position:fixed; bottom:16px; right:16px; background:var(--red);
     color:#fff; border:2px solid var(--brass); border-radius:24px;
