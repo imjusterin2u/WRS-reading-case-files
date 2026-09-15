@@ -1196,12 +1196,35 @@ function renderSpell(r){
     </div>`;
   }
 
+  let lastHeardAt = 0;
+  const HEAR_COOLDOWN_MS = 30000;
+  let hearCooldownTimer = null;
+
+  function updateHearButtons(){
+    const remaining = Math.max(0, HEAR_COOLDOWN_MS - (Date.now() - lastHeardAt));
+    panel.querySelectorAll('.hear-btn').forEach(btn=>{
+      if(!btn.dataset.origLabel) btn.dataset.origLabel = btn.textContent;
+      if(remaining>0){
+        btn.disabled = true;
+        btn.textContent = `🔊 Wait ${Math.ceil(remaining/1000)}s`;
+      } else {
+        btn.disabled = false;
+        btn.textContent = btn.dataset.origLabel;
+      }
+    });
+    clearTimeout(hearCooldownTimer);
+    if(remaining>0) hearCooldownTimer = setTimeout(updateHearButtons, 1000);
+  }
+
   function playWordSequence(){
     if(!('speechSynthesis' in window)) return;
+    if(Date.now() - lastHeardAt < HEAR_COOLDOWN_MS) return; // still cooling down
+    lastHeardAt = Date.now();
     window.speechSynthesis.cancel();
     speakText(q.word, 0.85);
     setTimeout(()=>speakText(q.sentence, 0.85), 900);
     setTimeout(()=>speakText(q.word, 0.85), 2600);
+    updateHearButtons();
   }
 
   function drawStep(){
@@ -1217,10 +1240,11 @@ function renderSpell(r){
       ${stepTrack('listen')}
       <div class="question-prompt" style="text-align:center;">Step 1 — Listen</div>
       <p style="text-align:center;">Tap the button. Listen to the word, hear it in a sentence, then hear the word one more time.</p>
-      <div class="center"><button class="spell-word-btn" id="hearBtn">🔊 Hear the word</button></div>
+      <div class="center"><button class="spell-word-btn hear-btn" id="hearBtn">🔊 Hear the word</button></div>
       <div class="center" style="margin-top:26px;"><button class="btn" id="toTapBtn">Next: Pause &amp; Tap →</button></div>
     `;
     panel.querySelector('#hearBtn').onclick = playWordSequence;
+    updateHearButtons();
     panel.querySelector('#toTapBtn').onclick = ()=>{ step='tap'; drawStep(); };
   }
 
@@ -1237,7 +1261,7 @@ function renderSpell(r){
       ${stepTrack('tap')}
       <div class="question-prompt" style="text-align:center;">Step 2 — Pause &amp; Tap</div>
       <p style="text-align:center;">Listen again if you need to. Then tap each card in order and say the sound out loud.</p>
-      <div class="center"><button class="btn ghost" id="hearAgainBtn">🔊 Hear it again</button></div>
+      <div class="center"><button class="btn ghost hear-btn" id="hearAgainBtn">🔊 Hear it again</button></div>
       <div class="tap-row" id="tapRow"></div>
       <p class="tile-hint" id="tapHint">Tap card 1 and say its sound.</p>
       <div class="center" style="margin-top:14px;"><button class="btn" id="toSpellBtn" disabled>Next: Spell with Cards →</button></div>
@@ -1267,6 +1291,7 @@ function renderSpell(r){
     }
     drawTaps();
     panel.querySelector('#hearAgainBtn').onclick = playWordSequence;
+    updateHearButtons();
     toSpellBtn.onclick = ()=>{ step='spell'; drawStep(); };
   }
 
@@ -1294,7 +1319,7 @@ function renderSpell(r){
         ${stepTrack('tap')}
         <div class="question-prompt" style="text-align:center;">Step 2 — Pause &amp; Tap</div>
         <p style="text-align:center;">Listen again if you need to. Then figure out how many syllables (word parts) this word breaks into.</p>
-        <div class="center"><button class="btn ghost" id="hearAgainBtn">🔊 Hear it again</button></div>
+        <div class="center"><button class="btn ghost hear-btn" id="hearAgainBtn">🔊 Hear it again</button></div>
         <div class="center" style="margin:18px 0 8px;"><b>How many syllables?</b></div>
         <div class="row" style="justify-content:center;">
           ${Array.from({length:maxButtons},(_,i)=>i+1).map(n=>`<button class="tool-btn" data-n="${n}" style="min-width:44px;">${n}</button>`).join('')}
@@ -1302,6 +1327,7 @@ function renderSpell(r){
         <p class="tile-hint" id="sylCountHint" style="margin-top:10px;">Say the word slowly and count the parts you hear.</p>
       `;
       panel.querySelector('#hearAgainBtn').onclick = playWordSequence;
+      updateHearButtons();
       panel.querySelectorAll('[data-n]').forEach(btn=>{
         btn.onclick = ()=>{
           const n = parseInt(btn.dataset.n);
@@ -1328,12 +1354,13 @@ function renderSpell(r){
         ${stepTrack('tap')}
         <div class="question-prompt" style="text-align:center;">Step 2 — Pause &amp; Tap</div>
         <p style="text-align:center;">Say each syllable out loud, then tap its cards to spell out the sounds inside it.</p>
-        <div class="center"><button class="btn ghost" id="hearAgainBtn">🔊 Hear it again</button></div>
+        <div class="center"><button class="btn ghost hear-btn" id="hearAgainBtn">🔊 Hear it again</button></div>
         <div class="syllable-cards" id="sylCards"></div>
         <p class="tile-hint" id="sylHint">${allDone ? 'All syllables tapped — nice work!' : `Say syllable ${cardIdx+1} out loud, then tap its sound cards in order.`}</p>
         <div class="center" style="margin-top:14px;"><button class="btn" id="toSpellBtn" ${allDone?'':'disabled'}>Next: Spell with Cards →</button></div>
       `;
       panel.querySelector('#hearAgainBtn').onclick = playWordSequence;
+      updateHearButtons();
       const container = panel.querySelector('#sylCards');
       container.innerHTML = q.morphemes.map((m,mi)=>{
         const sounds = cardSounds[mi];
@@ -1373,7 +1400,7 @@ function renderSpell(r){
       ${stepTrack('spell')}
       <div class="question-prompt" style="text-align:center;">Step 3 — Spell with Cards</div>
       <p style="text-align:center;">Drag — or tap — the letter tiles into order below. A few extra tiles don't belong — leave them in the tray.</p>
-      <div class="center"><button class="spell-word-btn" id="hearBtn">🔊 Hear the word</button></div>
+      <div class="center"><button class="spell-word-btn hear-btn" id="hearBtn">🔊 Hear the word</button></div>
       <div class="tile-slots" id="tileSlots"></div>
       <div class="tile-tray" id="tileTray"></div>
       <p class="tile-hint">Tap a tile to place it, tap a placed tile to send it back.</p>
@@ -1383,6 +1410,7 @@ function renderSpell(r){
       </div>
     `;
     panel.querySelector('#hearBtn').onclick = playWordSequence;
+    updateHearButtons();
 
     const slotsEl = panel.querySelector('#tileSlots');
     const trayEl = panel.querySelector('#tileTray');
@@ -1511,7 +1539,7 @@ function renderSpell(r){
             <div class="explain-title">🔎 Not quite yet</div>
             <div class="explain-body">Locked letters (🔒) are already correct — fix the rest, then file the evidence again.</div>
             <div class="center" style="margin-top:10px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-              <button class="btn ghost" id="hearRetryBtn">🔊 Hear the word again</button>
+              <button class="btn ghost hear-btn" id="hearRetryBtn">🔊 Hear the word again</button>
               <button class="btn" id="spellRetryBtn">🔄 Try Again</button>
             </div>
           </div>
@@ -1519,6 +1547,7 @@ function renderSpell(r){
         panel.appendChild(box);
         box.scrollIntoView({behavior:'smooth', block:'nearest'});
         document.getElementById('hearRetryBtn').onclick = playWordSequence;
+        updateHearButtons();
         document.getElementById('spellRetryBtn').onclick=()=>{
           box.remove();
           draw();
